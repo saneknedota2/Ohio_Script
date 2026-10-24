@@ -1,0 +1,266 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local KEYWORDS = {
+    Bank    = { "bank", "vault", "safe", "deposit", "atm" },
+    Jeweler = { "jewel", "jeweler", "ring", "gem", "diamond" },
+    Base    = { "base", "military", "army", "gate", "wall", "fence", "tent" },
+    Item    = { "item", "loot", "pickup", "weapon", "gun", "cash" },
+}
+
+local COLORS = {
+    Bank    = Color3.fromRGB(255, 200, 0),
+    Jeweler = Color3.fromRGB(180, 100, 255),
+    Base    = Color3.fromRGB(0, 180, 255),
+    Item    = Color3.fromRGB(0, 255, 150),
+    Open    = Color3.fromRGB(0, 255, 120),
+    Closed  = Color3.fromRGB(255, 60, 60),
+    Neutral = Color3.fromRGB(200, 200, 200),
+}
+
+local function colorOf(cat) return COLORS[cat] or COLORS.Neutral end
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "RocketOhioVisuals"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 280, 0, 310)
+mainFrame.Position = UDim2.new(0, 20, 0, 80)
+mainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = mainFrame
+
+local scroll = Instance.new("ScrollingFrame")
+scroll.Size = UDim2.new(1, -20, 1, -52)
+scroll.Position = UDim2.new(0, 10, 0, 48)
+scroll.BackgroundTransparency = 1
+scroll.BorderSizePixel = 0
+scroll.ScrollBarThickness = 3
+scroll.Parent = mainFrame
+
+local list = Instance.new("UIListLayout")
+list.Padding = UDim.new(0, 6)
+list.SortOrder = Enum.SortOrder.LayoutOrder
+list.Parent = scroll
+local function createToggle(name, default, order, accent)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 32)
+    btn.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+    btn.BorderSizePixel = 0
+    btn.Text = name .. ": OFF"
+    btn.TextColor3 = Color3.fromRGB(200, 200, 210)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 13
+    btn.LayoutOrder = order
+    btn.Parent = scroll
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 6)
+    c.Parent = btn
+    btn:SetAttribute("Enabled", default or false)
+    if default then
+        btn.Text = name .. ": ON"
+        btn.BackgroundColor3 = accent or Color3.fromRGB(0,200,120)
+        btn.TextColor3 = Color3.new(0,0,0)
+    end
+    btn.MouseButton1Click:Connect(function()
+        local on = not btn:GetAttribute("Enabled")
+        btn:SetAttribute("Enabled", on)
+        btn.Text = name .. ": " .. (on and "ON" or "OFF")
+        btn.BackgroundColor3 = on and (accent or Color3.fromRGB(0,200,120)) or Color3.fromRGB(28,28,38)
+        btn.TextColor3 = on and Color3.new(0,0,0) or Color3.fromRGB(200,200,210)
+    end)
+    return btn
+end
+
+local togglePlayers  = createToggle("Players ESP", true, 1, Color3.fromRGB(255,80,80))
+local toggleItems    = createToggle("Items ESP", false, 2, COLORS.Item)
+local toggleBank     = createToggle("Bank / Vault", true, 3, COLORS.Bank)
+local toggleJeweler  = createToggle("Jeweler / Safe", true, 4, COLORS.Jeweler)
+local toggleBase     = createToggle("Military Base", true, 5, COLORS.Base)
+local toggleStatus   = createToggle("Open/Closed Labels", true, 6, Color3.fromRGB(100,200,255))
+local toggleDistance = createToggle("Show Distance", true, 7, Color3.fromRGB(255,200,0))
+
+local espFolder = Instance.new("Folder")
+espFolder.Name = "RocketVisuals"
+espFolder.Parent = Workspace
+
+local tracked = {}
+local playerVisuals = {}
+
+local function getLocalHRP()
+    local char = player.Character
+    return char and char:FindFirstChild("HumanoidRootPart")
+end
+
+local function nameMatches(name, kws)
+    local l = name:lower()
+    for _, k in ipairs(kws) do if l:find(k) then return true end end
+    return false
+end
+
+local function getOpenState(part)
+    local locked = part:GetAttribute("Locked")
+    if locked ~= nil then return locked and "CLOSED" or "OPEN" end
+    if part:IsA("BasePart") then
+        if part.Transparency > 0.7 then return "OPEN" end
+        if part.CanCollide == false then return "OPEN" end
+    end
+    return "CLOSED"
+end
+local function createVisual(part, category)
+    if tracked[part] then return end
+    if not (part:IsA("BasePart") or part:IsA("Model")) then return end
+    local color = colorOf(category)
+    local hl = Instance.new("Highlight")
+    hl.FillColor = color
+    hl.FillTransparency = 0.55
+    hl.OutlineColor = color
+    hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Adornee = part
+    hl.Parent = espFolder
+    local bb = Instance.new("BillboardGui")
+    bb.Size = UDim2.new(0, 220, 0, 46)
+    bb.StudsOffset = Vector3.new(0, 3.5, 0)
+    bb.AlwaysOnTop = true
+    bb.Adornee = part
+    bb.Parent = espFolder
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.TextColor3 = color
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 13
+    lbl.TextStrokeTransparency = 0
+    lbl.Text = category .. " | " .. part.Name
+    lbl.Parent = bb
+    tracked[part] = { highlight = hl, billboard = bb, label = lbl, category = category }
+end
+
+local function destroyVisual(part)
+    local d = tracked[part]
+    if not d then return end
+    if d.highlight then d.highlight:Destroy() end
+    if d.billboard then d.billboard:Destroy() end
+    tracked[part] = nil
+end
+
+local function scanWorld()
+    local cats = {
+        { name = "Bank", toggle = toggleBank, kws = KEYWORDS.Bank },
+        { name = "Jeweler", toggle = toggleJeweler, kws = KEYWORDS.Jeweler },
+        { name = "Base", toggle = toggleBase, kws = KEYWORDS.Base },
+        { name = "Item", toggle = toggleItems, kws = KEYWORDS.Item },
+    }
+    for part, _ in pairs(tracked) do
+        if not part:IsDescendantOf(Workspace) then destroyVisual(part) end
+    end
+    for _, cat in ipairs(cats) do
+        if cat.toggle:GetAttribute("Enabled") then
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if (obj:IsA("BasePart") or obj:IsA("Model"))
+                    and not tracked[obj]
+                    and obj ~= espFolder
+                    and not obj:IsDescendantOf(Players) then
+                    if nameMatches(obj.Name, cat.kws) then
+                        createVisual(obj, cat.name)
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function applyPlayerESP(char, plr)
+    if not char or plr == player then return end
+    local head = char:FindFirstChild("Head")
+    if not head then return end
+    local hl = Instance.new("Highlight")
+    hl.FillColor = Color3.fromRGB(255,80,80)
+    hl.FillTransparency = 0.5
+    hl.OutlineColor = Color3.new(1,1,1)
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Adornee = char
+    hl.Parent = espFolder
+    local bb = Instance.new("BillboardGui")
+    bb.Size = UDim2.new(0, 200, 0, 40)
+    bb.StudsOffset = Vector3.new(0, 2.5, 0)
+    bb.AlwaysOnTop = true
+    bb.Adornee = head
+    bb.Parent = espFolder
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1,0,1,0)
+    lbl.BackgroundTransparency = 1
+    lbl.TextColor3 = Color3.fromRGB(255,80,80)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 13
+    lbl.Text = plr.DisplayName
+    lbl.Parent = bb
+    playerVisuals[plr] = { highlight = hl, billboard = bb, label = lbl, character = char }
+end
+
+local function removePlayerESP(plr)
+    local d = playerVisuals[plr]
+    if not d then return end
+    if d.highlight then d.highlight:Destroy() end
+    if d.billboard then d.billboard:Destroy() end
+    playerVisuals[plr] = nil
+end
+
+local scanTimer = 0
+RunService.Heartbeat:Connect(function(dt)
+    scanTimer = scanTimer + dt
+    if scanTimer >= 2 then
+        scanTimer = 0
+        pcall(scanWorld)
+    end
+    local statusOn = toggleStatus:GetAttribute("Enabled")
+    local distOn = toggleDistance:GetAttribute("Enabled")
+    local hrp = getLocalHRP()
+    for part, data in pairs(tracked) do
+        if not part.Parent then
+            destroyVisual(part)
+        else
+            local pos = part:IsA("BasePart") and part.Position or nil
+            local distText = ""
+            if distOn and pos and hrp then
+                distText = " | " .. math.floor((pos - hrp.Position).Magnitude) .. "m"
+            end
+            if statusOn then
+                local state = getOpenState(part)
+                data.label.Text = data.category .. " | " .. part.Name .. " [" .. state .. "]" .. distText
+                data.label.TextColor3 = (state == "OPEN") and COLORS.Open or COLORS.Closed
+            else
+                data.label.Text = data.category .. " | " .. part.Name .. distText
+                data.label.TextColor3 = colorOf(data.category)
+            end
+        end
+    end
+    if togglePlayers:GetAttribute("Enabled") then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= player and p.Character and not playerVisuals[p] then
+                applyPlayerESP(p.Character, p)
+            end
+        end
+    else
+        for p, _ in pairs(playerVisuals) do removePlayerESP(p) end
+    end
+end)
+
+Players.PlayerRemoving:Connect(removePlayerESP)
+
+task.spawn(function()
+    task.wait(1)
+    pcall(scanWorld)
+end)
+
+print("[ROCKET] Ohio Visuals loaded.")
