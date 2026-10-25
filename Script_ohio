@@ -63,7 +63,7 @@ createButton("ВЫКЛЮЧИТЬ ВСЁ", "OFF", Color3.fromRGB(60,60,60), 10)
 createButton("Оружие (В продаже)", "ShopWeapon", COLORS.ShopWeapon, 45)
 createButton("Оружие (Подобрать)", "DropWeapon", COLORS.DropWeapon, 80)
 createButton("Броня", "Armor", COLORS.Armor, 115)
-createButton("Деньги в банке", "Money", COLORS.Money, 150)
+createButton("Деньги / Сейфы", "Money", COLORS.Money, 150)
 createButton("Еда", "Food", COLORS.Food, 185)
 createButton("Авто-Фарм + ТП", "AutoFarmBank", Color3.fromRGB(0, 255, 100), 220)
 
@@ -104,10 +104,10 @@ local function checkWeapon(obj)
     return "ShopWeapon"
 end
 
--- УМНЫЙ ФИЛЬТР (Убрали полы, туториалы и пустые кассы)
+-- ФИЛЬТР ДЛЯ ESP (Вернули сейфы, убрали полы)
 local function isItem(obj, category)
     local n = obj.Name:lower()
-    -- Игнорируем мусор
+    -- Убираем мусор: полы, стены, вывески
     if n:find("sign") or n:find("wall") or n:find("mesh") or n:find("part") or n:find("building") or n:find("mug") or n:find("cup") or n:find("tower") or n:find("floor") or n:find("tutorial") then return false end
     
     if category == "ShopWeapon" or category == "DropWeapon" then 
@@ -115,35 +115,44 @@ local function isItem(obj, category)
     elseif category == "Armor" then 
         return (n:find("armor") or n:find("vest") or n:find("helmet")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop"))
     elseif category == "Money" then 
-        -- Показываем ТОЛЬКО деньги, которые лежат на полу (BankCash, Cash, MoneyDrop)
-        return (n:find("bankcash") or n == "cash" or n == "money") and not n:find("register") and not n:find("atm") and not n:find("safe")
+        -- Возвращаем сейфы и банкоматы в ESP, но убираем кассы
+        return (n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n:find("cash") or n:find("money")) and not n:find("register")
     elseif category == "Food" then 
         return (n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger") or n:find("water")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop")) 
     end
     return false
 end
 
--- УЛУЧШЕННЫЙ АВТО-ФАРМ (Ищет только BankCash)
+-- УЛУЧШЕННЫЙ АВТО-ФАРМ (ТП только к деньгам с кнопкой подбора)
 task.spawn(function()
-    while task.wait(0.1) do -- Ускорили цикл (было 0.3)
+    while task.wait(0.15) do 
         if autoFarmBank and player.Character then
             local hrp = player.Character:FindFirstChild("HumanoidRootPart")
             if hrp then
                 local targetObj = nil
-                local shortestDist = 1000 -- Ищем по всей карте
+                local shortestDist = 1000 -- Радиус 1000 метров
 
-                -- Ищем ТОЛЬКО выпавшие деньги (BankCash)
                 for _, obj in ipairs(Workspace:GetDescendants()) do
                     if obj:IsA("BasePart") or obj:IsA("Model") then
                         local n = obj.Name:lower()
-                        if (n == "bankcash" or n == "cash" or n:find("cash") and not n:find("register")) then
-                            if not (n:find("door") or n:find("house") or n:find("wall") or n:find("floor") or n:find("safe") or n:find("atm")) then
-                                local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
-                                if pos then
-                                    local dist = (pos - hrp.Position).Magnitude
-                                    if dist < shortestDist then
-                                        shortestDist = dist
-                                        targetObj = obj
+                        
+                        -- Ищем строго BankCash, Cash или Money
+                        if (n == "bankcash" or n == "cash" or n == "money" or n == "moneydrop") then
+                            -- Жестко игнорируем кассы, полки, коробки и банкоматы
+                            if not (n:find("register") or n:find("atm") or n:find("cashier") or n:find("shelf") or n:find("box") or n:find("safe") or n:find("vault")) then
+                                
+                                -- Проверяем, что это реально лут, который можно подобрать
+                                local click = obj:FindFirstChildWhichIsA("ClickDetector", true)
+                                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                
+                                if click or prompt then
+                                    local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
+                                    if pos then
+                                        local dist = (pos - hrp.Position).Magnitude
+                                        if dist < shortestDist then
+                                            shortestDist = dist
+                                            targetObj = obj
+                                        end
                                     end
                                 end
                             end
@@ -151,16 +160,15 @@ task.spawn(function()
                     end
                 end
 
-                -- Если нашли деньги — телепортируемся и собираем
+                -- Если нашли настоящие деньги — телепортируемся
                 if targetObj then
                     local targetPos = targetObj:IsA("BasePart") and targetObj.Position or (targetObj.PrimaryPart and targetObj.PrimaryPart.Position)
                     
                     if targetPos then
-                        -- Телепорт прямо в деньги (быстро, чтобы не ждать)
-                        hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 2, 0))
+                        hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
                         task.wait(0.05) 
                         
-                        -- Подбираем
+                        -- Собираем
                         local prompt = targetObj:FindFirstChildWhichIsA("ProximityPrompt", true)
                         if prompt then fireproximityprompt(prompt) end
                         
