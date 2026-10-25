@@ -4,11 +4,11 @@ local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Расширенные базы слов для поиска
+-- Точные настройки, чтобы не цеплять мусор
 local KEYWORDS = {
-    Weapon = { "gun", "weapon", "ak47", "ak-47", "m4", "pistol", "shotgun", "knife", "glock", "rifle", "ammo" },
+    Weapon = { "gun", "weapon", "ak", "m4", "pistol", "shotgun", "knife", "glock", "rifle", "ammo", "paintball" },
     Armor  = { "armor", "vest", "helmet", "shield" },
-    Money  = { "cash", "money", "dollar", "atm", "vault", "safe", "bank" },
+    Money  = { "cash", "money", "dollar", "atm", "vault", "safe", "bank", "register", "cashier" },
     Food   = { "food", "medkit", "health", "heal", "apple", "burger", "water", "drink", "bandage" }
 }
 
@@ -16,12 +16,11 @@ local COLORS = {
     Weapon = Color3.fromRGB(255, 50, 50),
     Armor  = Color3.fromRGB(50, 150, 255),
     Money  = Color3.fromRGB(255, 200, 0),
-    Food   = Color3.fromRGB(0, 255, 150),
-    Custom = Color3.fromRGB(255, 255, 255)
+    Food   = Color3.fromRGB(0, 255, 150)
 }
 
 local currentMode = "OFF"
-local customSearch = ""
+local autoFarm = false
 local tracked = {}
 
 -- GUI
@@ -30,8 +29,8 @@ screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 220, 0, 330)
-mainFrame.Position = UDim2.new(0, 20, 0, 80)
+mainFrame.Size = UDim2.new(0, 220, 0, 380)
+mainFrame.Position = UDim2.new(0, 20, 0, 60)
 mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
@@ -50,59 +49,29 @@ local function createButton(text, mode, color, yPos)
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     
     btn.MouseButton1Click:Connect(function()
-        currentMode = mode
-        customSearch = ""
-        searchBox.Text = ""
-        for p, d in pairs(tracked) do d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
-        
-        for _, child in ipairs(mainFrame:GetChildren()) do
-            if child:IsA("TextButton") and child.Text ~= "ВЫКЛЮЧИТЬ ВСЁ" then
-                child.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+        if mode == "AutoFarm" then
+            autoFarm = not autoFarm
+            btn.BackgroundColor3 = autoFarm and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(30, 30, 40)
+            btn.Text = autoFarm and "АВТО-ФАРМ: ВКЛ" or "Авто-Фарм денег"
+        else
+            currentMode = mode
+            for p, d in pairs(tracked) do d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
+            for _, child in ipairs(mainFrame:GetChildren()) do
+                if child:IsA("TextButton") and child ~= btn and child.Text ~= "ВЫКЛЮЧИТЬ ВСЁ" and child.Text ~= "Авто-Фарм денег" and child.Text ~= "АВТО-ФАРМ: ВКЛ" then
+                    child.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+                end
             end
+            btn.BackgroundColor3 = color
         end
-        btn.BackgroundColor3 = color
     end)
 end
 
 createButton("ВЫКЛЮЧИТЬ ВСЁ", "OFF", Color3.fromRGB(60,60,60), 10)
-createButton("Оружие (Gun / AK)", "Weapon", COLORS.Weapon, 45)
-createButton("Броня (Armor / Vest)", "Armor", COLORS.Armor, 80)
+createButton("Оружие", "Weapon", COLORS.Weapon, 45)
+createButton("Броня", "Armor", COLORS.Armor, 80)
 createButton("Деньги / Сейфы", "Money", COLORS.Money, 115)
-createButton("Еда и Аптечки", "Food", COLORS.Food, 150)
-
--- Строка поиска
-local searchBox = Instance.new("TextBox")
-searchBox.Size = UDim2.new(1, -20, 0, 30)
-searchBox.Position = UDim2.new(0, 10, 0, 190)
-searchBox.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-searchBox.PlaceholderText = "Свой поиск (например: ak)"
-searchBox.Text = ""
-searchBox.TextColor3 = Color3.new(1,1,1)
-searchBox.Font = Enum.Font.Gotham
-searchBox.TextSize = 13
-searchBox.Parent = mainFrame
-Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 6)
-
--- Подсказка
-local helpLbl = Instance.new("TextLabel")
-helpLbl.Size = UDim2.new(1, -20, 0, 80)
-helpLbl.Position = UDim2.new(0, 10, 0, 230)
-helpLbl.BackgroundTransparency = 1
-helpLbl.Text = "Если вводишь сам: пиши точное название (например ak47).\nМусор (FakeGrass) скрипт игнорирует."
-helpLbl.TextColor3 = Color3.fromRGB(150, 150, 150)
-helpLbl.Font = Enum.Font.Gotham
-helpLbl.TextSize = 11
-helpLbl.TextWrapped = true
-helpLbl.TextYAlignment = Enum.TextYAlignment.Top
-helpLbl.Parent = mainFrame
-
-searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-    customSearch = searchBox.Text:lower()
-    if customSearch ~= "" then
-        currentMode = "Search"
-        for p, d in pairs(tracked) do d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
-    end
-end)
+createButton("Еда", "Food", COLORS.Food, 150)
+createButton("Авто-Фарм денег", "AutoFarm", Color3.fromRGB(0, 255, 100), 185)
 
 local espFolder = Instance.new("Folder", Workspace)
 
@@ -116,7 +85,7 @@ local function createVisual(part, color)
     hl.Parent = espFolder
     
     local bb = Instance.new("BillboardGui")
-    bb.Size = UDim2.new(0, 200, 0, 20)
+    bb.Size = UDim2.new(0, 150, 0, 20)
     bb.AlwaysOnTop = true
     bb.Adornee = part
     bb.Parent = espFolder
@@ -130,50 +99,58 @@ local function createVisual(part, color)
     tracked[part] = {hl=hl, bb=bb}
 end
 
--- Точный поиск (чтобы "ak" не находил "FakeGrass")
-local function checkMatch(name, keywords)
+-- Умная проверка (ищет совпадение, но отсеивает мусор)
+local function isUseful(name, keywords)
+    local n = name:lower()
+    if n:find("fake") or n:find("mesh") or n:find("part") or n:find("material") or n:find("glass") or n:find("grass") then return false end
     for _, k in ipairs(keywords) do
-        if name == k or name:find(k) then 
-            -- Игнорируем мусор
-            if not name:find("fake") and not name:find("grass") and not name:find("glass") then
-                return true 
-            end
-        end
+        if n:find(k) then return true end
     end
     return false
 end
 
+-- Логика Авто-Фарма
 task.spawn(function()
-    while task.wait(1.5) do
-        if currentMode == "OFF" then
-            for p, d in pairs(tracked) do d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
-        else
-            for part, data in pairs(tracked) do
-                if not part.Parent then
-                    data.hl:Destroy(); data.bb:Destroy(); tracked[part] = nil
-                end
-            end
-
+    while task.wait(0.5) do
+        if autoFarm and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = player.Character.HumanoidRootPart
+            -- Ищем банкоматы, кассы и деньги
             for _, obj in ipairs(Workspace:GetDescendants()) do
-                if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
+                if obj:IsA("BasePart") or obj:IsA("Model") then
                     local n = obj.Name:lower()
-                    
-                    -- Игнорируем фейковые объекты
-                    if not n:find("fake") and not n:find("grass") and not n:find("glass") then
-                        if currentMode == "Search" and n:find(customSearch) then
-                            createVisual(obj, COLORS.Custom)
-                        elseif currentMode == "Weapon" and checkMatch(n, KEYWORDS.Weapon) then
-                            createVisual(obj, COLORS.Weapon)
-                        elseif currentMode == "Armor" and checkMatch(n, KEYWORDS.Armor) then
-                            createVisual(obj, COLORS.Armor)
-                        elseif currentMode == "Money" and checkMatch(n, KEYWORDS.Money) then
-                            createVisual(obj, COLORS.Money)
-                        elseif currentMode == "Food" and checkMatch(n, KEYWORDS.Food) then
-                            createVisual(obj, COLORS.Food)
+                    if n:find("atm") or n:find("cash") or n:find("register") or n:find("vault") or n:find("safe") or n:find("money") then
+                        local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
+                        if pos and (pos - hrp.Position).Magnitude < 15 then
+                            -- Телепортируемся к объекту и активируем (ломаем/собираем)
+                            if obj:FindFirstChild("ClickDetector") then
+                                fireclickdetector(obj.ClickDetector)
+                            elseif obj:FindFirstChildWhichIsA("ProximityPrompt") then
+                                fireproximityprompt(obj:FindFirstChildWhichIsA("ProximityPrompt"))
+                            end
                         end
                     end
                 end
             end
+        end
+    end
+end)
+
+-- Отрисовка ESP
+RunService.Heartbeat:Connect(function()
+    if currentMode == "OFF" then return end
+    
+    for part, data in pairs(tracked) do
+        if not part.Parent then
+            data.hl:Destroy(); data.bb:Destroy(); tracked[part] = nil
+        end
+    end
+
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
+            if currentMode == "Weapon" and isUseful(obj.Name, KEYWORDS.Weapon) then createVisual(obj, COLORS.Weapon) end
+            if currentMode == "Armor" and isUseful(obj.Name, KEYWORDS.Armor) then createVisual(obj, COLORS.Armor) end
+            if currentMode == "Money" and isUseful(obj.Name, KEYWORDS.Money) then createVisual(obj, COLORS.Money) end
+            if currentMode == "Food" and isUseful(obj.Name, KEYWORDS.Food) then createVisual(obj, COLORS.Food) end
         end
     end
 end)
