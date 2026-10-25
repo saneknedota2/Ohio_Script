@@ -18,47 +18,92 @@ local ESP_COLORS = {
 }
 
 -- ==========================================
--- СОЗДАНИЕ GUI
+-- ГЛАВНЫЙ GUI (Сворачиваемый)
 -- ==========================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 450, 0, 320)
+mainFrame.Size = UDim2.new(0, 450, 0, 40) -- Изначально свернуто
 mainFrame.Position = UDim2.new(0.5, -225, 0.1, 0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
-Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
-local stroke = Instance.new("UIStroke", mainFrame)
-stroke.Thickness = 2
-stroke.Color = Color3.fromRGB(0, 0, 0)
 
--- Панель вкладок (сверху)
+local corner = Instance.new("UICorner", mainFrame)
+corner.CornerRadius = UDim.new(0, 8)
+
+local mainStroke = Instance.new("UIStroke", mainFrame)
+mainStroke.Thickness = 2
+mainStroke.Color = Color3.fromRGB(0, 150, 255)
+
+-- Верхняя панель (Заголовок)
+local titleBar = Instance.new("TextButton")
+titleBar.Size = UDim2.new(1, 0, 0, 40)
+titleBar.BackgroundTransparency = 1
+titleBar.Text = "  ROCKET | Ohio Menu"
+titleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleBar.Font = Enum.Font.GothamBold
+titleBar.TextSize = 18
+titleBar.TextXAlignment = Enum.TextXAlignment.Left
+titleBar.Parent = mainFrame
+
+-- Треугольник (Открыто/Закрыто)
+local arrowBtn = Instance.new("TextLabel")
+arrowBtn.Size = UDim2.new(0, 40, 0, 40)
+arrowBtn.Position = UDim2.new(1, -40, 0, 0)
+arrowBtn.BackgroundTransparency = 1
+arrowBtn.Text = "▶"
+arrowBtn.TextColor3 = Color3.fromRGB(0, 150, 255)
+arrowBtn.Font = Enum.Font.GothamBold
+arrowBtn.TextSize = 20
+arrowBtn.Parent = mainFrame
+
+-- Контейнер контента (скрыт по умолчанию)
+local contentFrame = Instance.new("Frame")
+contentFrame.Size = UDim2.new(1, 0, 1, -40)
+contentFrame.Position = UDim2.new(0, 0, 0, 40)
+contentFrame.BackgroundTransparency = 1
+contentFrame.Visible = false
+contentFrame.Parent = mainFrame
+
+-- Логика сворачивания
+local isOpen = false
+titleBar.MouseButton1Click:Connect(function()
+    isOpen = not isOpen
+    if isOpen then
+        mainFrame.Size = UDim2.new(0, 450, 0, 320)
+        arrowBtn.Text = "▼"
+        contentFrame.Visible = true
+    else
+        mainFrame.Size = UDim2.new(0, 450, 0, 40)
+        arrowBtn.Text = "▶"
+        contentFrame.Visible = false
+    end
+end)
+
+-- ==========================================
+-- ВКЛАДКИ
+-- ==========================================
 local tabBar = Instance.new("Frame")
-tabBar.Size = UDim2.new(1, -40, 0, 40)
-tabBar.Position = UDim2.new(0, 20, 0, 10)
+tabBar.Size = UDim2.new(1, -20, 0, 30)
+tabBar.Position = UDim2.new(0, 10, 0, 10)
 tabBar.BackgroundTransparency = 1
-tabBar.Parent = mainFrame
+tabBar.Parent = contentFrame
 
 local tabLayout = Instance.new("UIListLayout", tabBar)
 tabLayout.FillDirection = Enum.FillDirection.Horizontal
-tabLayout.Padding = UDim.new(0, 40)
+tabLayout.Padding = UDim.new(0, 20)
 tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
--- Контейнер для страниц
 local pageContainer = Instance.new("Frame")
-pageContainer.Size = UDim2.new(1, -40, 1, -70)
-pageContainer.Position = UDim2.new(0, 20, 0, 60)
+pageContainer.Size = UDim2.new(1, -20, 1, -60)
+pageContainer.Position = UDim2.new(0, 10, 0, 50)
 pageContainer.BackgroundTransparency = 1
-pageContainer.Parent = mainFrame
+pageContainer.Parent = contentFrame
 
--- ==========================================
--- ЛОГИКА ВКЛАДОК
--- ==========================================
 local pages = {}
-
 local function createPage(name)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 1, 0)
@@ -75,27 +120,26 @@ local pageHuman = createPage("HUMAN")
 local pageCustom = createPage("CUSTOM")
 
 local function switchTab(tabName)
-    for name, frame in pairs(pages) do
-        frame.Visible = (name == tabName)
-    end
+    for name, frame in pairs(pages) do frame.Visible = (name == tabName) end
 end
 
 local function createTabButton(text, tabName)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 80, 0, 30)
-    btn.BackgroundTransparency = 1
+    btn.Size = UDim2.new(0, 70, 0, 30)
+    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
     btn.Text = text
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 14
-    btn.TextColor3 = Color3.fromRGB(0, 0, 0)
+    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
     btn.Parent = tabBar
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     
     btn.MouseButton1Click:Connect(function()
         switchTab(tabName)
         for _, child in ipairs(tabBar:GetChildren()) do
-            if child:IsA("TextButton") then child.TextColor3 = Color3.fromRGB(100, 100, 100) end
+            if child:IsA("TextButton") then child.TextColor3 = Color3.fromRGB(200, 200, 200) end
         end
-        btn.TextColor3 = Color3.fromRGB(0, 0, 0)
+        btn.TextColor3 = Color3.fromRGB(0, 150, 255)
     end)
 end
 
@@ -104,15 +148,17 @@ createTabButton("ESP", "ESP")
 createTabButton("HUMAN", "HUMAN")
 createTabButton("CUSTOM", "CUSTOM")
 
--- Функция для создания кнопок в страницах
+-- ==========================================
+-- ЭЛЕМЕНТЫ УПРАВЛЕНИЯ
+-- ==========================================
 local function createButton(parent, text, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, 200, 0, 30)
     btn.Position = UDim2.new(0, 0, 0, #parent:GetChildren() * 35)
-    btn.BackgroundColor3 = Color3.fromRGB(220, 220, 220)
+    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
     btn.Text = text
-    btn.TextColor3 = Color3.fromRGB(0, 0, 0)
-    btn.Font = Enum.Font.Gotham
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
     btn.TextSize = 14
     btn.Parent = parent
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
@@ -121,27 +167,22 @@ local function createButton(parent, text, callback)
     return btn
 end
 
--- ==========================================
--- ЗАПОЛНЕНИЕ ВКЛАДОК
--- ==========================================
-
--- 1. MAIN (Авто-фарм)
+-- 1. MAIN
 local btnFarm = createButton(pageMain, "Авто-Фарм Банка (ТП): OFF", function()
     autoFarmBank = not autoFarmBank
     btnFarm.Text = "Авто-Фарм Банка (ТП): " .. (autoFarmBank and "ON" or "OFF")
-    btnFarm.BackgroundColor3 = autoFarmBank and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(220, 220, 220)
+    btnFarm.BackgroundColor3 = autoFarmBank and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(40, 40, 45)
 end)
 
--- 2. ESP (Визуалы)
-local espToggles = {
-    Weapon = false, Armor = false, Money = false, Food = false
-}
+-- 2. ESP
+local espToggles = { Weapon = false, Armor = false, Money = false, Food = false }
 
 local function createESPToggle(label, key)
     local btn = createButton(pageESP, label .. ": OFF", function()
         espToggles[key] = not espToggles[key]
         btn.Text = label .. ": " .. (espToggles[key] and "ON" or "OFF")
-        btn.BackgroundColor3 = espToggles[key] and ESP_COLORS[key] or Color3.fromRGB(220, 220, 220)
+        btn.BackgroundColor3 = espToggles[key] and ESP_COLORS[key] or Color3.fromRGB(40, 40, 45)
+        btn.TextColor3 = espToggles[key] and Color3.fromRGB(0,0,0) or Color3.fromRGB(255, 255, 255)
         
         if not espToggles[key] then
             for p, d in pairs(tracked) do
@@ -156,11 +197,11 @@ createESPToggle("Броня", "Armor")
 createESPToggle("Деньги / Сейфы", "Money")
 createESPToggle("Еда", "Food")
 
--- 3. HUMAN (Персонаж)
+-- 3. HUMAN
 local humanSpeed = createButton(pageHuman, "Скорость (Speed): OFF", function()
     speedHack = not speedHack
     humanSpeed.Text = "Скорость (Speed): " .. (speedHack and "ON" or "OFF")
-    humanSpeed.BackgroundColor3 = speedHack and Color3.fromRGB(0, 200, 255) or Color3.fromRGB(220, 220, 220)
+    humanSpeed.BackgroundColor3 = speedHack and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(40, 40, 45)
     if player.Character and player.Character:FindFirstChild("Humanoid") then
         player.Character.Humanoid.WalkSpeed = speedHack and 50 or 16
     end
@@ -169,38 +210,68 @@ end)
 local humanJump = createButton(pageHuman, "Прыжок (Jump): OFF", function()
     jumpHack = not jumpHack
     humanJump.Text = "Прыжок (Jump): " .. (jumpHack and "ON" or "OFF")
-    humanJump.BackgroundColor3 = jumpHack and Color3.fromRGB(0, 200, 255) or Color3.fromRGB(220, 220, 220)
+    humanJump.BackgroundColor3 = jumpHack and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(40, 40, 45)
     if player.Character and player.Character:FindFirstChild("Humanoid") then
         player.Character.Humanoid.JumpPower = jumpHack and 100 or 50
     end
 end)
 
--- 4. CUSTOM (Цвета меню)
-local customColors = {
-    { "Тёмная тема", Color3.fromRGB(30, 30, 40), Color3.fromRGB(255, 255, 255) },
-    { "Светлая тема", Color3.fromRGB(240, 240, 240), Color3.fromRGB(0, 0, 0) },
-    { "Красная тема", Color3.fromRGB(50, 10, 10), Color3.fromRGB(255, 100, 100) },
-    { "Зелёная тема", Color3.fromRGB(10, 40, 10), Color3.fromRGB(100, 255, 100) }
+-- 4. CUSTOM (Палитра цветов и толщина)
+local paletteFrame = Instance.new("Frame")
+paletteFrame.Size = UDim2.new(0, 200, 0, 100)
+paletteFrame.BackgroundTransparency = 1
+paletteFrame.Parent = pageCustom
+
+local colors = {
+    Color3.fromRGB(255, 50, 50), Color3.fromRGB(50, 255, 50), Color3.fromRGB(50, 150, 255),
+    Color3.fromRGB(255, 200, 50), Color3.fromRGB(200, 50, 255), Color3.fromRGB(255, 255, 255),
+    Color3.fromRGB(0, 150, 255), Color3.fromRGB(255, 100, 0), Color3.fromRGB(150, 150, 150)
 }
 
-for _, theme in ipairs(customColors) do
-    createButton(pageCustom, theme[1], function()
-        mainFrame.BackgroundColor3 = theme[2]
-        stroke.Color = theme[3]
-        for _, child in ipairs(mainFrame:GetDescendants()) do
-            if child:IsA("TextLabel") or child:IsA("TextButton") then
-                child.TextColor3 = theme[3]
-            end
-        end
+for i, color in ipairs(colors) do
+    local colorBtn = Instance.new("TextButton")
+    colorBtn.Size = UDim2.new(0, 30, 0, 30)
+    colorBtn.Position = UDim2.new(0, (i-1)%5 * 35, 0, math.floor((i-1)/5) * 35)
+    colorBtn.BackgroundColor3 = color
+    colorBtn.Text = ""
+    colorBtn.Parent = paletteFrame
+    Instance.new("UICorner", colorBtn).CornerRadius = UDim.new(0, 15)
+    
+    colorBtn.MouseButton1Click:Connect(function()
+        -- Меняем цвет обводки и текста заголовка
+        mainStroke.Color = color
+        arrowBtn.TextColor3 = color
+        titleBar.TextColor3 = color
     end)
 end
 
--- Инициализация первой вкладки
+-- Кнопки изменения толщины обводки
+local function createThicknessButton(text, thickness, yOffset)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 60, 0, 30)
+    btn.Position = UDim2.new(0, 0, 0, 100 + yOffset)
+    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.GothamBold
+    btn.Parent = pageCustom
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    
+    btn.MouseButton1Click:Connect(function()
+        mainStroke.Thickness = thickness
+    end)
+end
+
+createThicknessButton("Тонкая", 1, 0)
+createThicknessButton("Средняя", 3, 35)
+createThicknessButton("Толстая", 5, 70)
+
+-- Инициализация
 switchTab("main")
-tabBar:GetChildren()[1].TextColor3 = Color3.fromRGB(0, 0, 0)
+tabBar:GetChildren()[1].TextColor3 = Color3.fromRGB(0, 150, 255)
 
 -- ==========================================
--- ЛОГИКА ESP И АВТО-ФАРМА
+-- ЛОГИКА ESP И АВТО-ФАРМА (Без изменений)
 -- ==========================================
 local espFolder = Instance.new("Folder", Workspace)
 
@@ -244,7 +315,6 @@ local function isItem(obj, category)
     return false
 end
 
--- АВТО-ФАРМ
 task.spawn(function()
     while task.wait(0.15) do 
         if autoFarmBank and player.Character then
@@ -291,7 +361,6 @@ task.spawn(function()
     end
 end)
 
--- Отрисовка ESP
 task.spawn(function()
     while task.wait(1) do
         for p, d in pairs(tracked) do
