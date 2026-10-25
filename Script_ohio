@@ -14,7 +14,7 @@ local COLORS = {
 }
 
 local currentMode = "OFF"
-local autoFarmBank = false
+local autoBank = false
 local tracked = {}
 
 -- GUI
@@ -43,15 +43,15 @@ local function createButton(text, mode, color, yPos)
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     
     btn.MouseButton1Click:Connect(function()
-        if mode == "AutoFarmBank" then
-            autoFarmBank = not autoFarmBank
-            btn.BackgroundColor3 = autoFarmBank and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(30, 30, 40)
-            btn.Text = autoFarmBank and "ФАРМ БАНКА: ВКЛ" or "Авто-Фарм Банка"
+        if mode == "AutoBank" then
+            autoBank = not autoBank
+            btn.BackgroundColor3 = autoBank and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(30, 30, 40)
+            btn.Text = autoBank and "АВТО-БАНК: ВКЛ" or "Авто-Банк (Сбор денег)"
         else
             currentMode = mode
             for p, d in pairs(tracked) do d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
             for _, child in ipairs(mainFrame:GetChildren()) do
-                if child:IsA("TextButton") and child ~= btn and child.Text ~= "ФАРМ БАНКА: ВКЛ" and child.Text ~= "Авто-Фарм Банка" then
+                if child:IsA("TextButton") and child ~= btn and child.Text ~= "АВТО-БАНК: ВКЛ" and child.Text ~= "Авто-Банк (Сбор денег)" then
                     child.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
                 end
             end
@@ -66,7 +66,7 @@ createButton("Оружие (Подобрать)", "DropWeapon", COLORS.DropWeapo
 createButton("Броня", "Armor", COLORS.Armor, 115)
 createButton("Деньги / Сейфы", "Money", COLORS.Money, 150)
 createButton("Еда", "Food", COLORS.Food, 185)
-createButton("Авто-Фарм Банка", "AutoFarmBank", Color3.fromRGB(0, 255, 100), 220)
+createButton("Авто-Банк (Сбор)", "AutoBank", Color3.fromRGB(0, 255, 100), 220)
 
 local espFolder = Instance.new("Folder", Workspace)
 
@@ -115,46 +115,32 @@ local function isItem(obj, category)
     return false
 end
 
--- УМНЫЙ АВТО-ФАРМ (Только банкоматы/кассы, без щитов и брони)
+-- АВТО-БАНК (Удержание E для сбора денег)
 task.spawn(function()
-    while task.wait(0.2) do
-        if autoFarmBank and player.Character then
+    while task.wait(0.1) do
+        if autoBank and player.Character then
             local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-            local tool = player.Character:FindFirstChildWhichIsA("Tool")
-            
             if hrp then
-                local closestObj = nil
-                local shortestDist = 7 -- Бьем только то, что в радиусе 7 метров (чтобы не тянуло)
-
                 for _, obj in ipairs(Workspace:GetDescendants()) do
                     if obj:IsA("BasePart") or obj:IsA("Model") then
                         local n = obj.Name:lower()
-                        -- Ищем ТОЛЬКО банкоматы, кассы и сейфы. Щиты (shield/armor) игнорируем.
-                        if (n:find("atm") or n:find("register") or n:find("vault") or n:find("safe") or n:find("cash")) 
-                           and not n:find("sign") and not n:find("shield") and not n:find("armor") then
-                            
+                        -- Ищем главное хранилище банка
+                        if n:find("vault") or n:find("bank") or n:find("safe") then
                             local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
-                            if pos then
-                                local dist = (pos - hrp.Position).Magnitude
-                                if dist < shortestDist then
-                                    shortestDist = dist
-                                    closestObj = obj
+                            if pos and (pos - hrp.Position).Magnitude < 15 then
+                                -- Нажимаем и УДЕРЖИВАЕМ кнопку E
+                                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                if prompt then
+                                    -- Имитируем зажатие кнопки E
+                                    pcall(function()
+                                        prompt:InputHoldBegin()
+                                        task.wait(prompt.HoldDuration + 0.1) -- Ждем, пока заполнится шкала
+                                        prompt:InputHoldEnd()
+                                    end)
                                 end
                             end
                         end
                     end
-                end
-
-                -- Если банкомат рядом, спамим удары
-                if closestObj then
-                    if tool then
-                        tool:Activate()
-                    end
-                    -- Имитация удара рукой (ЛКМ)
-                    VirtualUser:CaptureController()
-                    VirtualUser:Button1Down(Vector2.new(0,0))
-                    task.wait(0.1)
-                    VirtualUser:Button1Up(Vector2.new(0,0))
                 end
             end
         end
