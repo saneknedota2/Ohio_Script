@@ -4,17 +4,20 @@ local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Настройки
-local WEAPON_KEYWORDS = { "gun", "weapon", "ak", "m4", "pistol", "shotgun", "knife", "ammo", "glock" }
-local ITEM_KEYWORDS = { "cash", "money", "loot", "pickup", "item" }
-local BANK_KEYWORDS = { "vault", "safe", "deposit", "bank" }
-local JEWEL_KEYWORDS = { "jewel", "gem", "diamond", "ring" }
+-- Расширенные базы слов для поиска
+local KEYWORDS = {
+    Weapon = { "gun", "weapon", "ak47", "ak-47", "m4", "pistol", "shotgun", "knife", "glock", "rifle", "ammo" },
+    Armor  = { "armor", "vest", "helmet", "shield" },
+    Money  = { "cash", "money", "dollar", "atm", "vault", "safe", "bank" },
+    Food   = { "food", "medkit", "health", "heal", "apple", "burger", "water", "drink", "bandage" }
+}
 
 local COLORS = {
     Weapon = Color3.fromRGB(255, 50, 50),
-    Item   = Color3.fromRGB(0, 255, 150),
-    Bank   = Color3.fromRGB(255, 200, 0),
-    Jewel  = Color3.fromRGB(180, 100, 255)
+    Armor  = Color3.fromRGB(50, 150, 255),
+    Money  = Color3.fromRGB(255, 200, 0),
+    Food   = Color3.fromRGB(0, 255, 150),
+    Custom = Color3.fromRGB(255, 255, 255)
 }
 
 local currentMode = "OFF"
@@ -27,18 +30,17 @@ screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 220, 0, 220)
+mainFrame.Size = UDim2.new(0, 220, 0, 330)
 mainFrame.Position = UDim2.new(0, 20, 0, 80)
 mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
 
--- Выпадающий список (имитация кнопками)
-local function createButton(text, mode, color)
+local function createButton(text, mode, color, yPos)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -20, 0, 30)
-    btn.Position = UDim2.new(0, 10, 0, 10 + (#mainFrame:GetChildren() * 5) * 30) -- авто-позиция
+    btn.Position = UDim2.new(0, 10, 0, yPos)
     btn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
     btn.Text = text
     btn.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -51,12 +53,10 @@ local function createButton(text, mode, color)
         currentMode = mode
         customSearch = ""
         searchBox.Text = ""
-        -- Очистка визуалов при переключении
         for p, d in pairs(tracked) do d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
         
-        -- Визуал нажатой кнопки
         for _, child in ipairs(mainFrame:GetChildren()) do
-            if child:IsA("TextButton") then
+            if child:IsA("TextButton") and child.Text ~= "ВЫКЛЮЧИТЬ ВСЁ" then
                 child.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
             end
         end
@@ -64,24 +64,37 @@ local function createButton(text, mode, color)
     end)
 end
 
-createButton("ВЫКЛЮЧИТЬ ВСЁ", "OFF", Color3.fromRGB(60,60,60))
-createButton("Все Оружие", "Weapon", COLORS.Weapon)
-createButton("Все Предметы (Кэш/Лут)", "Item", COLORS.Item)
-createButton("Банк / Сейфы", "Bank", COLORS.Bank)
-createButton("Ювелирка", "Jewel", COLORS.Jewel)
+createButton("ВЫКЛЮЧИТЬ ВСЁ", "OFF", Color3.fromRGB(60,60,60), 10)
+createButton("Оружие (Gun / AK)", "Weapon", COLORS.Weapon, 45)
+createButton("Броня (Armor / Vest)", "Armor", COLORS.Armor, 80)
+createButton("Деньги / Сейфы", "Money", COLORS.Money, 115)
+createButton("Еда и Аптечки", "Food", COLORS.Food, 150)
 
 -- Строка поиска
 local searchBox = Instance.new("TextBox")
 searchBox.Size = UDim2.new(1, -20, 0, 30)
-searchBox.Position = UDim2.new(0, 10, 1, -40)
+searchBox.Position = UDim2.new(0, 10, 0, 190)
 searchBox.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-searchBox.PlaceholderText = "Введи название (например: ak)"
+searchBox.PlaceholderText = "Свой поиск (например: ak)"
 searchBox.Text = ""
 searchBox.TextColor3 = Color3.new(1,1,1)
 searchBox.Font = Enum.Font.Gotham
 searchBox.TextSize = 13
 searchBox.Parent = mainFrame
 Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 6)
+
+-- Подсказка
+local helpLbl = Instance.new("TextLabel")
+helpLbl.Size = UDim2.new(1, -20, 0, 80)
+helpLbl.Position = UDim2.new(0, 10, 0, 230)
+helpLbl.BackgroundTransparency = 1
+helpLbl.Text = "Если вводишь сам: пиши точное название (например ak47).\nМусор (FakeGrass) скрипт игнорирует."
+helpLbl.TextColor3 = Color3.fromRGB(150, 150, 150)
+helpLbl.Font = Enum.Font.Gotham
+helpLbl.TextSize = 11
+helpLbl.TextWrapped = true
+helpLbl.TextYAlignment = Enum.TextYAlignment.Top
+helpLbl.Parent = mainFrame
 
 searchBox:GetPropertyChangedSignal("Text"):Connect(function()
     customSearch = searchBox.Text:lower()
@@ -91,7 +104,6 @@ searchBox:GetPropertyChangedSignal("Text"):Connect(function()
     end
 end)
 
--- Хранилище визуалов
 local espFolder = Instance.new("Folder", Workspace)
 
 local function createVisual(part, color)
@@ -118,17 +130,21 @@ local function createVisual(part, color)
     tracked[part] = {hl=hl, bb=bb}
 end
 
--- Функция проверки совпадений
+-- Точный поиск (чтобы "ak" не находил "FakeGrass")
 local function checkMatch(name, keywords)
     for _, k in ipairs(keywords) do
-        if name:find(k) then return true end
+        if name == k or name:find(k) then 
+            -- Игнорируем мусор
+            if not name:find("fake") and not name:find("grass") and not name:find("glass") then
+                return true 
+            end
+        end
     end
     return false
 end
 
--- Сканирование (раз в 2 секунды, чтобы не лагало)
 task.spawn(function()
-    while task.wait(2) do
+    while task.wait(1.5) do
         if currentMode == "OFF" then
             for p, d in pairs(tracked) do d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
         else
@@ -141,16 +157,20 @@ task.spawn(function()
             for _, obj in ipairs(Workspace:GetDescendants()) do
                 if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
                     local n = obj.Name:lower()
-                    if currentMode == "Search" and n:find(customSearch) then
-                        createVisual(obj, Color3.fromRGB(255, 255, 255))
-                    elseif currentMode == "Weapon" and checkMatch(n, WEAPON_KEYWORDS) then
-                        createVisual(obj, COLORS.Weapon)
-                    elseif currentMode == "Item" and checkMatch(n, ITEM_KEYWORDS) then
-                        createVisual(obj, COLORS.Item)
-                    elseif currentMode == "Bank" and checkMatch(n, BANK_KEYWORDS) then
-                        createVisual(obj, COLORS.Bank)
-                    elseif currentMode == "Jewel" and checkMatch(n, JEWEL_KEYWORDS) then
-                        createVisual(obj, COLORS.Jewel)
+                    
+                    -- Игнорируем фейковые объекты
+                    if not n:find("fake") and not n:find("grass") and not n:find("glass") then
+                        if currentMode == "Search" and n:find(customSearch) then
+                            createVisual(obj, COLORS.Custom)
+                        elseif currentMode == "Weapon" and checkMatch(n, KEYWORDS.Weapon) then
+                            createVisual(obj, COLORS.Weapon)
+                        elseif currentMode == "Armor" and checkMatch(n, KEYWORDS.Armor) then
+                            createVisual(obj, COLORS.Armor)
+                        elseif currentMode == "Money" and checkMatch(n, KEYWORDS.Money) then
+                            createVisual(obj, COLORS.Money)
+                        elseif currentMode == "Food" and checkMatch(n, KEYWORDS.Food) then
+                            createVisual(obj, COLORS.Food)
+                        end
                     end
                 end
             end
