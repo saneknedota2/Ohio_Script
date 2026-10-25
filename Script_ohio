@@ -4,14 +4,6 @@ local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Точные настройки, чтобы не цеплять мусор
-local KEYWORDS = {
-    Weapon = { "gun", "weapon", "ak", "m4", "pistol", "shotgun", "knife", "glock", "rifle", "ammo", "paintball" },
-    Armor  = { "armor", "vest", "helmet", "shield" },
-    Money  = { "cash", "money", "dollar", "atm", "vault", "safe", "bank", "register", "cashier" },
-    Food   = { "food", "medkit", "health", "heal", "apple", "burger", "water", "drink", "bandage" }
-}
-
 local COLORS = {
     Weapon = Color3.fromRGB(255, 50, 50),
     Armor  = Color3.fromRGB(50, 150, 255),
@@ -29,7 +21,7 @@ screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 220, 0, 380)
+mainFrame.Size = UDim2.new(0, 220, 0, 320)
 mainFrame.Position = UDim2.new(0, 20, 0, 60)
 mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 mainFrame.BorderSizePixel = 0
@@ -52,26 +44,26 @@ local function createButton(text, mode, color, yPos)
         if mode == "AutoFarm" then
             autoFarm = not autoFarm
             btn.BackgroundColor3 = autoFarm and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(30, 30, 40)
-            btn.Text = autoFarm and "АВТО-ФАРМ: ВКЛ" or "Авто-Фарм денег"
+            btn.Text = autoFarm and "АВТО-ФАРМ: ВКЛ" or "Авто-Фарм"
         else
             currentMode = mode
             for p, d in pairs(tracked) do d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
             for _, child in ipairs(mainFrame:GetChildren()) do
-                if child:IsA("TextButton") and child ~= btn and child.Text ~= "ВЫКЛЮЧИТЬ ВСЁ" and child.Text ~= "Авто-Фарм денег" and child.Text ~= "АВТО-ФАРМ: ВКЛ" then
+                if child:IsA("TextButton") and child ~= btn and child.Text ~= "АВТО-ФАРМ: ВКЛ" and child.Text ~= "Авто-Фарм" then
                     child.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
                 end
             end
-            btn.BackgroundColor3 = color
+            if mode ~= "OFF" then btn.BackgroundColor3 = color end
         end
     end)
 end
 
 createButton("ВЫКЛЮЧИТЬ ВСЁ", "OFF", Color3.fromRGB(60,60,60), 10)
-createButton("Оружие", "Weapon", COLORS.Weapon, 45)
+createButton("Оружие (Только пушки)", "Weapon", COLORS.Weapon, 45)
 createButton("Броня", "Armor", COLORS.Armor, 80)
 createButton("Деньги / Сейфы", "Money", COLORS.Money, 115)
-createButton("Еда", "Food", COLORS.Food, 150)
-createButton("Авто-Фарм денег", "AutoFarm", Color3.fromRGB(0, 255, 100), 185)
+createButton("Еда / Аптечки", "Food", COLORS.Food, 150)
+createButton("Авто-Фарм", "AutoFarm", Color3.fromRGB(0, 255, 100), 185)
 
 local espFolder = Instance.new("Folder", Workspace)
 
@@ -99,33 +91,53 @@ local function createVisual(part, color)
     tracked[part] = {hl=hl, bb=bb}
 end
 
--- Умная проверка (ищет совпадение, но отсеивает мусор)
-local function isUseful(name, keywords)
-    local n = name:lower()
-    if n:find("fake") or n:find("mesh") or n:find("part") or n:find("material") or n:find("glass") or n:find("grass") then return false end
-    for _, k in ipairs(keywords) do
-        if n:find(k) then return true end
+-- Умный фильтр, который ищет ТОЛЬКО сами предметы (а не здания)
+local function isItem(obj, category)
+    local n = obj.Name:lower()
+    
+    -- Жестко отсеиваем мусор, чтобы не лагало
+    if n:find("sign") or n:find("wall") or n:find("mesh") or n:find("part") or n:find("material") or n:find("building") or n:find("mug") or n:find("cup") or n:find("tower") then 
+        return false 
+    end
+
+    -- Проверяем, можно ли это подобрать (обычно у лута есть ClickDetector или ProximityPrompt)
+    local isPickable = obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChildWhichIsA("ProximityPrompt") or obj:FindFirstChild("Handle")
+
+    if category == "Weapon" then
+        return isPickable and (n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle"))
+    elseif category == "Armor" then
+        return isPickable and (n:find("armor") or n:find("vest") or n:find("helmet"))
+    elseif category == "Money" then
+        return (n:find("atm") or n:find("vault") or n:find("safe") or n:find("register") or n:find("cash")) and not n:find("sign")
+    elseif category == "Food" then
+        return isPickable and (n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger") or n:find("water"))
     end
     return false
 end
 
--- Логика Авто-Фарма
+-- Логика Авто-Фарма (машет кулаками по банкоматам)
 task.spawn(function()
-    while task.wait(0.5) do
-        if autoFarm and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-            local hrp = player.Character.HumanoidRootPart
-            -- Ищем банкоматы, кассы и деньги
-            for _, obj in ipairs(Workspace:GetDescendants()) do
-                if obj:IsA("BasePart") or obj:IsA("Model") then
-                    local n = obj.Name:lower()
-                    if n:find("atm") or n:find("cash") or n:find("register") or n:find("vault") or n:find("safe") or n:find("money") then
-                        local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
-                        if pos and (pos - hrp.Position).Magnitude < 15 then
-                            -- Телепортируемся к объекту и активируем (ломаем/собираем)
-                            if obj:FindFirstChild("ClickDetector") then
-                                fireclickdetector(obj.ClickDetector)
-                            elseif obj:FindFirstChildWhichIsA("ProximityPrompt") then
-                                fireproximityprompt(obj:FindFirstChildWhichIsA("ProximityPrompt"))
+    while task.wait(0.3) do
+        if autoFarm and player.Character then
+            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+            local tool = player.Character:FindFirstChildWhichIsA("Tool")
+            
+            if hrp then
+                for _, obj in ipairs(Workspace:GetDescendants()) do
+                    if obj:IsA("BasePart") then
+                        local n = obj.Name:lower()
+                        if (n:find("atm") or n:find("register") or n:find("vault") or n:find("cash") or n:find("money") or n:find("safe")) and not n:find("sign") then
+                            local dist = (obj.Position - hrp.Position).Magnitude
+                            if dist < 15 then
+                                -- Если есть инструмент (кулаки/бита), бьем
+                                if tool and tool:FindFirstChild("Handle") then
+                                    tool:Activate()
+                                end
+                                -- Если есть кнопка (ProximityPrompt), нажимаем
+                                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt")
+                                if prompt then
+                                    fireproximityprompt(prompt)
+                                end
                             end
                         end
                     end
@@ -135,22 +147,25 @@ task.spawn(function()
     end
 end)
 
--- Отрисовка ESP
-RunService.Heartbeat:Connect(function()
-    if currentMode == "OFF" then return end
-    
-    for part, data in pairs(tracked) do
-        if not part.Parent then
-            data.hl:Destroy(); data.bb:Destroy(); tracked[part] = nil
-        end
-    end
+-- Отрисовка ESP (сканируем раз в 1.5 секунды, чтобы не лагало)
+task.spawn(function()
+    while task.wait(1.5) do
+        if currentMode == "OFF" then
+            for p, d in pairs(tracked) do d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
+        else
+            for part, data in pairs(tracked) do
+                if not part.Parent then
+                    data.hl:Destroy(); data.bb:Destroy(); tracked[part] = nil
+                end
+            end
 
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
-            if currentMode == "Weapon" and isUseful(obj.Name, KEYWORDS.Weapon) then createVisual(obj, COLORS.Weapon) end
-            if currentMode == "Armor" and isUseful(obj.Name, KEYWORDS.Armor) then createVisual(obj, COLORS.Armor) end
-            if currentMode == "Money" and isUseful(obj.Name, KEYWORDS.Money) then createVisual(obj, COLORS.Money) end
-            if currentMode == "Food" and isUseful(obj.Name, KEYWORDS.Food) then createVisual(obj, COLORS.Food) end
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
+                    if isItem(obj, currentMode) then
+                        createVisual(obj, COLORS[currentMode])
+                    end
+                end
+            end
         end
     end
 end)
