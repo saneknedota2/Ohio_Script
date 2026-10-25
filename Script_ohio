@@ -4,8 +4,16 @@ local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
+local COLORS = {
+    ShopWeapon = Color3.fromRGB(255, 100, 100),
+    DropWeapon = Color3.fromRGB(255, 0, 0),
+    Armor      = Color3.fromRGB(50, 150, 255),
+    Money      = Color3.fromRGB(255, 200, 0),
+    Food       = Color3.fromRGB(0, 255, 150)
+}
+
 local currentMode = "OFF"
-local afkFarmBank = false
+local autoFarmBank = false
 local tracked = {}
 
 -- GUI
@@ -34,15 +42,15 @@ local function createButton(text, mode, color, yPos)
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     
     btn.MouseButton1Click:Connect(function()
-        if mode == "AFKBank" then
-            afkFarmBank = not afkFarmBank
-            btn.BackgroundColor3 = afkFarmBank and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(30, 30, 40)
-            btn.Text = afkFarmBank and "ФАРМ БАНКА: ВКЛ" or "AFK Фарм (Банк)"
+        if mode == "AutoFarmBank" then
+            autoFarmBank = not autoFarmBank
+            btn.BackgroundColor3 = autoFarmBank and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(30, 30, 40)
+            btn.Text = autoFarmBank and "АВТО-ФАРМ: ВКЛ" or "Авто-Фарм Банка"
         else
             currentMode = mode
             for p, d in pairs(tracked) do d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
             for _, child in ipairs(mainFrame:GetChildren()) do
-                if child:IsA("TextButton") and child ~= btn and child.Text ~= "ФАРМ БАНКА: ВКЛ" and child.Text ~= "AFK Фарм (Банк)" then
+                if child:IsA("TextButton") and child ~= btn and child.Text ~= "АВТО-ФАРМ: ВКЛ" and child.Text ~= "Авто-Фарм Банка" then
                     child.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
                 end
             end
@@ -52,12 +60,12 @@ local function createButton(text, mode, color, yPos)
 end
 
 createButton("ВЫКЛЮЧИТЬ ВСЁ", "OFF", Color3.fromRGB(60,60,60), 10)
-createButton("Оружие (В продаже)", "ShopWeapon", Color3.fromRGB(255, 100, 100), 45)
-createButton("Оружие (Подобрать)", "DropWeapon", Color3.fromRGB(255, 0, 0), 80)
-createButton("Броня", "Armor", Color3.fromRGB(50, 150, 255), 115)
-createButton("Деньги / Сейфы", "Money", Color3.fromRGB(255, 200, 0), 150)
-createButton("Еда", "Food", Color3.fromRGB(0, 255, 150), 185)
-createButton("AFK Фарм (Банк)", "AFKBank", Color3.fromRGB(255, 50, 50), 220)
+createButton("Оружие (В продаже)", "ShopWeapon", COLORS.ShopWeapon, 45)
+createButton("Оружие (Подобрать)", "DropWeapon", COLORS.DropWeapon, 80)
+createButton("Броня", "Armor", COLORS.Armor, 115)
+createButton("Деньги / Сейфы", "Money", COLORS.Money, 150)
+createButton("Еда", "Food", COLORS.Food, 185)
+createButton("Авто-Фарм Банка", "AutoFarmBank", Color3.fromRGB(0, 255, 100), 220)
 
 local espFolder = Instance.new("Folder", Workspace)
 
@@ -69,11 +77,13 @@ local function createVisual(part, color)
     hl.OutlineColor = color
     hl.Adornee = part
     hl.Parent = espFolder
+    
     local bb = Instance.new("BillboardGui")
     bb.Size = UDim2.new(0, 150, 0, 20)
     bb.AlwaysOnTop = true
     bb.Adornee = part
     bb.Parent = espFolder
+    
     local lbl = Instance.new("TextLabel")
     lbl.Size = UDim2.new(1, 0, 1, 0)
     lbl.BackgroundTransparency = 1
@@ -83,94 +93,89 @@ local function createVisual(part, color)
     tracked[part] = {hl=hl, bb=bb}
 end
 
--- ===== ЛОГИКА AFK ФАРМА БАНКА =====
-local safePosition = nil -- Запоминаем, где ты стоял до телепорта
+local function checkWeapon(obj)
+    local n = obj.Name:lower()
+    if n:find("sign") or n:find("mesh") or n:find("material") or n:find("part") then return nil end
+    local isGun = n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle")
+    if not isGun then return nil end
+    local hasPrice = obj:FindFirstChild("Price") or obj:FindFirstChild("Cost") or obj:FindFirstChildWhichIsA("NumberValue")
+    local isPickable = obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChildWhichIsA("ProximityPrompt")
+    if hasPrice then return "ShopWeapon" elseif isPickable then return "DropWeapon" end
+    return "ShopWeapon"
+end
 
+local function isItem(obj, category)
+    local n = obj.Name:lower()
+    if n:find("sign") or n:find("wall") or n:find("mesh") or n:find("part") or n:find("building") or n:find("mug") or n:find("cup") or n:find("tower") then return false end
+    if category == "ShopWeapon" or category == "DropWeapon" then return checkWeapon(obj) == category
+    elseif category == "Armor" then return (n:find("armor") or n:find("vest") or n:find("helmet")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop"))
+    elseif category == "Money" then return (n:find("atm") or n:find("vault") or n:find("safe") or n:find("register") or n:find("cash")) and not n:find("sign")
+    elseif category == "Food" then return (n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger") or n:find("water")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop")) end
+    return false
+end
+
+-- АВТО-ФАРМ (Умный сбор лута и взаимодействие с банком)
 task.spawn(function()
     while task.wait(0.5) do
-        if afkFarmBank and player.Character then
+        if autoFarmBank and player.Character then
             local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-            if not hrp then continue end
-
-            -- Если мы еще не сохранили безопасную точку, сохраняем текущую
-            if not safePosition then
-                safePosition = hrp.CFrame
-            end
-
-            -- 1. Ищем хранилище (Vault) и проверяем, ОТКРЫТО ли оно
-            local vault = nil
-            local isOpen = false
-            
-            for _, obj in ipairs(Workspace:GetDescendants()) do
-                local n = obj.Name:lower()
-                if (n:find("vault") or n:find("bankdoor") or n:find("bank_door")) and not n:find("sign") then
-                    vault = obj
-                    -- Проверяем, открыта ли дверь (прозрачная или не имеет коллизии)
-                    if obj:IsA("BasePart") then
-                        if obj.Transparency > 0.5 or obj.CanCollide == false then
-                            isOpen = true
-                        end
-                    end
-                    break
-                end
-            end
-
-            if vault and isOpen then
-                -- 2. Ищем деньги внутри банка
-                local closestMoney = nil
-                local minDist = 500
-                for _, obj in ipairs(Workspace:GetDescendants()) do
-                    if obj:IsA("BasePart") or obj:IsA("Model") then
-                        local n = obj.Name:lower()
-                        if n:find("cash") or n:find("money") or n:find("dollar") then
-                            local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
-                            if pos then
-                                local d = (pos - hrp.Position).Magnitude
-                                if d < minDist then
-                                    minDist = d
-                                    closestMoney = obj
-                                end
+            if hrp then
+                -- Авто-подбор денег (Auto Pickup Loot)
+                for _, drop in ipairs(Workspace:GetDescendants()) do
+                    if drop:IsA("BasePart") or drop:IsA("Model") then
+                        local dn = drop.Name:lower()
+                        if dn:find("cash") or dn:find("money") or dn:find("dollar") then
+                            local dpos = drop:IsA("BasePart") and drop.Position or (drop.PrimaryPart and drop.PrimaryPart.Position)
+                            if dpos and (dpos - hrp.Position).Magnitude < 25 then
+                                local dclick = drop:FindFirstChildWhichIsA("ClickDetector", true)
+                                if dclick then fireclickdetector(dclick) end
+                                -- Если это ProximityPrompt, активируем
+                                local dprompt = drop:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                if dprompt then fireproximityprompt(dprompt) end
                             end
                         end
                     end
                 end
 
-                -- 3. Если нашли деньги — ТП к ним и сбор
-                if closestMoney then
-                    local pos = closestMoney:IsA("BasePart") and closestMoney.Position or closestMoney.PrimaryPart.Position
-                    hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
-                    task.wait(0.1)
-                    
-                    -- Жмем кнопку "Украсть" на экране
-                    for _, gui in ipairs(playerGui:GetDescendants()) do
-                        if (gui:IsA("TextButton") or gui:IsA("ImageButton")) and (gui.Text:lower():find("украсть") or gui.Text:lower():find("взять")) then
-                            gui:Click()
+                -- Взаимодействие с банком/сейфами (Bank Farm)
+                for _, obj in ipairs(Workspace:GetDescendants()) do
+                    if obj:IsA("BasePart") or obj:IsA("Model") then
+                        local n = obj.Name:lower()
+                        if (n:find("vault") or n:find("bank") or n:find("safe") or n:find("atm") or n:find("register")) and not n:find("sign") then
+                            local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
+                            if pos and (pos - hrp.Position).Magnitude < 15 then
+                                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                if prompt then fireproximityprompt(prompt) end
+                                local click = obj:FindFirstChildWhichIsA("ClickDetector", true)
+                                if click then fireclickdetector(click) end
+                            end
                         end
                     end
-                    -- Если есть кликдетектор
-                    local click = closestMoney:FindFirstChildWhichIsA("ClickDetector", true)
-                    if click then fireclickdetector(click) end
-                else
-                    -- 4. Если денег нет, но дверь открыта — просто стоим внутри (ждем спавна денег)
-                end
-            else
-                -- 5. Если дверь ЗАКРЫТА — телепортируемся обратно в безопасное место!
-                if safePosition and (hrp.Position - safePosition.Position).Magnitude > 10 then
-                    hrp.CFrame = safePosition
                 end
             end
-        else
-            -- Если фарм выключен, сбрасываем сохраненную точку
-            safePosition = nil
         end
     end
 end)
 
--- Отрисовка визуалов (работает как раньше)
+-- Отрисовка визуалов (ESP)
 task.spawn(function()
     while task.wait(1.5) do
         if currentMode == "OFF" then
             for p, d in pairs(tracked) do d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
+        else
+            for part, data in pairs(tracked) do
+                if not part.Parent then
+                    data.hl:Destroy(); data.bb:Destroy(); tracked[part] = nil
+                end
+            end
+
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
+                    if isItem(obj, currentMode) then
+                        createVisual(obj, COLORS[currentMode])
+                    end
+                end
+            end
         end
     end
 end)
