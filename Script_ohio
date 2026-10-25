@@ -5,10 +5,11 @@ local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 local COLORS = {
-    Weapon = Color3.fromRGB(255, 50, 50),
-    Armor  = Color3.fromRGB(50, 150, 255),
-    Money  = Color3.fromRGB(255, 200, 0),
-    Food   = Color3.fromRGB(0, 255, 150)
+    ShopWeapon = Color3.fromRGB(255, 100, 100), -- Светло-красный (магазин)
+    DropWeapon = Color3.fromRGB(255, 0, 0),     -- Темно-красный (подобрать)
+    Armor      = Color3.fromRGB(50, 150, 255),
+    Money      = Color3.fromRGB(255, 200, 0),
+    Food       = Color3.fromRGB(0, 255, 150)
 }
 
 local currentMode = "OFF"
@@ -21,7 +22,7 @@ screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 220, 0, 320)
+mainFrame.Size = UDim2.new(0, 220, 0, 350)
 mainFrame.Position = UDim2.new(0, 20, 0, 60)
 mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 mainFrame.BorderSizePixel = 0
@@ -44,12 +45,12 @@ local function createButton(text, mode, color, yPos)
         if mode == "AutoFarm" then
             autoFarm = not autoFarm
             btn.BackgroundColor3 = autoFarm and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(30, 30, 40)
-            btn.Text = autoFarm and "АВТО-ФАРМ: ВКЛ" or "Авто-Фарм"
+            btn.Text = autoFarm and "АВТО-ФАРМ: ВКЛ" or "Авто-Фарм денег"
         else
             currentMode = mode
             for p, d in pairs(tracked) do d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
             for _, child in ipairs(mainFrame:GetChildren()) do
-                if child:IsA("TextButton") and child ~= btn and child.Text ~= "АВТО-ФАРМ: ВКЛ" and child.Text ~= "Авто-Фарм" then
+                if child:IsA("TextButton") and child ~= btn and child.Text ~= "АВТО-ФАРМ: ВКЛ" and child.Text ~= "Авто-Фарм денег" then
                     child.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
                 end
             end
@@ -59,11 +60,12 @@ local function createButton(text, mode, color, yPos)
 end
 
 createButton("ВЫКЛЮЧИТЬ ВСЁ", "OFF", Color3.fromRGB(60,60,60), 10)
-createButton("Оружие (Только пушки)", "Weapon", COLORS.Weapon, 45)
-createButton("Броня", "Armor", COLORS.Armor, 80)
-createButton("Деньги / Сейфы", "Money", COLORS.Money, 115)
-createButton("Еда / Аптечки", "Food", COLORS.Food, 150)
-createButton("Авто-Фарм", "AutoFarm", Color3.fromRGB(0, 255, 100), 185)
+createButton("Оружие (В продаже)", "ShopWeapon", COLORS.ShopWeapon, 45)
+createButton("Оружие (Подобрать)", "DropWeapon", COLORS.DropWeapon, 80)
+createButton("Броня", "Armor", COLORS.Armor, 115)
+createButton("Деньги / Сейфы", "Money", COLORS.Money, 150)
+createButton("Еда", "Food", COLORS.Food, 185)
+createButton("Авто-Фарм денег", "AutoFarm", Color3.fromRGB(0, 255, 100), 220)
 
 local espFolder = Instance.new("Folder", Workspace)
 
@@ -91,53 +93,64 @@ local function createVisual(part, color)
     tracked[part] = {hl=hl, bb=bb}
 end
 
--- Умный фильтр, который ищет ТОЛЬКО сами предметы (а не здания)
+-- Разделяем оружие на магазинное и дроп
+local function checkWeapon(obj)
+    local n = obj.Name:lower()
+    if n:find("sign") or n:find("mesh") or n:find("material") or n:find("part") then return nil end
+    
+    local isGun = n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle")
+    if not isGun then return nil end
+
+    -- Если у объекта есть тег цены (обычно это Value, NumberValue или атрибут), значит он в магазине
+    local hasPrice = obj:FindFirstChild("Price") or obj:FindFirstChild("Cost") or obj:FindFirstChildWhichIsA("NumberValue")
+    -- Если это просто деталька лежащая на земле (нет родителя-модели с ценой и есть ClickDetector)
+    local isPickable = obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChildWhichIsA("ProximityPrompt")
+
+    if hasPrice then
+        return "ShopWeapon"
+    elseif isPickable then
+        return "DropWeapon"
+    end
+    return "ShopWeapon" -- По умолчанию, если висит на витрине
+end
+
+-- Логика поиска
 local function isItem(obj, category)
     local n = obj.Name:lower()
-    
-    -- Жестко отсеиваем мусор, чтобы не лагало
-    if n:find("sign") or n:find("wall") or n:find("mesh") or n:find("part") or n:find("material") or n:find("building") or n:find("mug") or n:find("cup") or n:find("tower") then 
-        return false 
-    end
+    if n:find("sign") or n:find("wall") or n:find("mesh") or n:find("part") or n:find("building") or n:find("mug") or n:find("cup") or n:find("tower") then return false end
 
-    -- Проверяем, можно ли это подобрать (обычно у лута есть ClickDetector или ProximityPrompt)
-    local isPickable = obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChildWhichIsA("ProximityPrompt") or obj:FindFirstChild("Handle")
-
-    if category == "Weapon" then
-        return isPickable and (n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle"))
+    if category == "ShopWeapon" or category == "DropWeapon" then
+        return checkWeapon(obj) == category
     elseif category == "Armor" then
-        return isPickable and (n:find("armor") or n:find("vest") or n:find("helmet"))
+        return (n:find("armor") or n:find("vest") or n:find("helmet")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop"))
     elseif category == "Money" then
         return (n:find("atm") or n:find("vault") or n:find("safe") or n:find("register") or n:find("cash")) and not n:find("sign")
     elseif category == "Food" then
-        return isPickable and (n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger") or n:find("water"))
+        return (n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger") or n:find("water")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop"))
     end
     return false
 end
 
--- Логика Авто-Фарма (машет кулаками по банкоматам)
+-- Улучшенный Авто-Фарм (Телепортация к банкомату и активация)
 task.spawn(function()
-    while task.wait(0.3) do
+    while task.wait(0.5) do
         if autoFarm and player.Character then
             local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-            local tool = player.Character:FindFirstChildWhichIsA("Tool")
-            
             if hrp then
                 for _, obj in ipairs(Workspace:GetDescendants()) do
                     if obj:IsA("BasePart") then
                         local n = obj.Name:lower()
-                        if (n:find("atm") or n:find("register") or n:find("vault") or n:find("cash") or n:find("money") or n:find("safe")) and not n:find("sign") then
-                            local dist = (obj.Position - hrp.Position).Magnitude
-                            if dist < 15 then
-                                -- Если есть инструмент (кулаки/бита), бьем
-                                if tool and tool:FindFirstChild("Handle") then
-                                    tool:Activate()
-                                end
-                                -- Если есть кнопка (ProximityPrompt), нажимаем
-                                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt")
-                                if prompt then
-                                    fireproximityprompt(prompt)
-                                end
+                        if (n:find("atm") or n:find("register") or n:find("cash") or n:find("money")) and not n:find("sign") then
+                            local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt")
+                            local click = obj:FindFirstChildWhichIsA("ClickDetector")
+                            
+                            -- Если нашли банкомат с кнопкой
+                            if prompt or click then
+                                -- Телепортируемся прямо к нему, чтобы достать
+                                hrp.CFrame = CFrame.new(obj.Position + Vector3.new(0, 2, 0))
+                                task.wait(0.2)
+                                if prompt then fireproximityprompt(prompt) end
+                                if click then fireclickdetector(click) end
                             end
                         end
                     end
@@ -147,7 +160,7 @@ task.spawn(function()
     end
 end)
 
--- Отрисовка ESP (сканируем раз в 1.5 секунды, чтобы не лагало)
+-- Отрисовка
 task.spawn(function()
     while task.wait(1.5) do
         if currentMode == "OFF" then
