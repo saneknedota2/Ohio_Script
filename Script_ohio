@@ -5,15 +5,19 @@ local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local currentMode = "OFF"
 local autoFarmBank = false
 local tracked = {}
 
+-- Переменные для HUMAN (Скорость и Прыжок)
+local desiredSpeed = 16
+local desiredJump = 50
+
 local ESP_COLORS = {
-    Weapon = Color3.fromRGB(255, 100, 100),
-    Armor  = Color3.fromRGB(50, 150, 255),
-    Money  = Color3.fromRGB(255, 200, 0),
-    Food   = Color3.fromRGB(0, 255, 150)
+    ShopWeapon = Color3.fromRGB(255, 100, 100),
+    DropWeapon = Color3.fromRGB(200, 0, 0),
+    Armor      = Color3.fromRGB(50, 150, 255),
+    Money      = Color3.fromRGB(255, 200, 0),
+    Food       = Color3.fromRGB(0, 255, 150)
 }
 
 -- ==========================================
@@ -24,7 +28,7 @@ screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 400, 0, 40) -- Свернуто
+mainFrame.Size = UDim2.new(0, 400, 0, 40)
 mainFrame.Position = UDim2.new(0.5, -200, 0.1, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 mainFrame.BorderSizePixel = 0
@@ -36,7 +40,6 @@ local mainStroke = Instance.new("UIStroke", mainFrame)
 mainStroke.Thickness = 2
 mainStroke.Color = Color3.fromRGB(0, 150, 255)
 
--- Панель перетаскивания
 local titleBar = Instance.new("Frame")
 titleBar.Size = UDim2.new(1, 0, 0, 40)
 titleBar.BackgroundTransparency = 1
@@ -71,7 +74,6 @@ contentFrame.BackgroundTransparency = 1
 contentFrame.Visible = false
 contentFrame.Parent = mainFrame
 
--- Сворачивание
 local isOpen = false
 arrowBtn.MouseButton1Click:Connect(function()
     isOpen = not isOpen
@@ -86,7 +88,7 @@ arrowBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Перетаскивание (Drag)
+-- Перетаскивание
 local dragging, dragInput, dragStart, startPos
 titleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -136,7 +138,7 @@ local pages = {}
 local tabButtons = {}
 
 local function createPage(name)
-    local frame = Instance.new("ScrollingFrame") -- Используем Scrolling, чтобы ничего не вылезало
+    local frame = Instance.new("ScrollingFrame")
     frame.Size = UDim2.new(1, 0, 1, 0)
     frame.BackgroundTransparency = 1
     frame.BorderSizePixel = 0
@@ -175,10 +177,7 @@ local function createTabButton(text, tabName)
     btn.Parent = tabBar
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     
-    btn.MouseButton1Click:Connect(function()
-        switchTab(tabName)
-    end)
-    
+    btn.MouseButton1Click:Connect(function() switchTab(tabName) end)
     tabButtons[tabName] = btn
 end
 
@@ -187,7 +186,6 @@ createTabButton("ESP", "ESP")
 createTabButton("Human", "HUMAN")
 createTabButton("Custom", "CUSTOM")
 
--- Универсальная кнопка
 local function createButton(parent, text, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -10, 0, 35)
@@ -215,7 +213,7 @@ end)
 -- ==========================================
 -- 2. ESP
 -- ==========================================
-local espToggles = { Weapon = false, Armor = false, Money = false, Food = false }
+local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false }
 
 local function createESPToggle(label, key)
     local btn = createButton(pageESP, label .. ": OFF", function()
@@ -232,13 +230,14 @@ local function createESPToggle(label, key)
     end)
 end
 
-createESPToggle("Оружие", "Weapon")
+createESPToggle("Оружие (В продаже)", "ShopWeapon")
+createESPToggle("Оружие (Подобрать)", "DropWeapon")
 createESPToggle("Броня", "Armor")
 createESPToggle("Деньги / Сейфы", "Money")
 createESPToggle("Еда", "Food")
 
 -- ==========================================
--- 3. HUMAN (Скорость и Прыжок)
+-- 3. HUMAN (Обновлено)
 -- ==========================================
 local function createStatSetting(parent, label, defaultVal, callback)
     local frame = Instance.new("Frame")
@@ -271,32 +270,18 @@ local function createStatSetting(parent, label, defaultVal, callback)
     
     local function apply()
         local num = tonumber(txtBox.Text)
-        if num then
-            callback(num)
-        else
-            txtBox.Text = tostring(defaultVal)
-        end
+        if num then callback(num) else txtBox.Text = tostring(defaultVal) end
     end
     
     txtBox.FocusLost:Connect(apply)
     txtBox.ReturnPressedFromOnScreenKeyboard:Connect(apply)
 end
 
-createStatSetting(pageHuman, "Скорость:", 16, function(val)
-    if player.Character and player.Character:FindFirstChild("Humanoid") then
-        player.Character.Humanoid.WalkSpeed = val
-    end
-end)
-
-createStatSetting(pageHuman, "Прыжок:", 50, function(val)
-    if player.Character and player.Character:FindFirstChild("Humanoid") then
-        player.Character.Humanoid.JumpPower = val
-        player.Character.Humanoid.UseJumpPower = true
-    end
-end)
+createStatSetting(pageHuman, "Скорость:", 16, function(val) desiredSpeed = val end)
+createStatSetting(pageHuman, "Прыжок:", 50, function(val) desiredJump = val end)
 
 -- ==========================================
--- 4. CUSTOM (Цвета)
+-- 4. CUSTOM
 -- ==========================================
 local paletteFrame = Instance.new("Frame")
 paletteFrame.Size = UDim2.new(1, -10, 0, 80)
@@ -349,11 +334,27 @@ createThickBtn("Тонкая", 1)
 createThickBtn("Средняя", 3)
 createThickBtn("Толстая", 5)
 
--- Инициализация
 switchTab("main")
 
 -- ==========================================
--- ЛОГИКА ESP И АВТО-ФАРМА
+-- ЦИКЛ ПРИНУДИТЕЛЬНОЙ УСТАНОВКИ СКОРОСТИ И ПРЫЖКА
+-- ==========================================
+RunService.Heartbeat:Connect(function()
+    if player.Character then
+        local hum = player.Character:FindFirstChild("Humanoid")
+        if hum then
+            -- Если античит сбросил скорость, мы ставим её обратно
+            if hum.WalkSpeed ~= desiredSpeed then hum.WalkSpeed = desiredSpeed end
+            if hum.JumpPower ~= desiredJump then 
+                hum.JumpPower = desiredJump 
+                hum.UseJumpPower = true -- Важно, чтобы прыжок работал
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- ЛОГИКА ESP И АВТО-ФАРМА (ОПТИМИЗИРОВАНО)
 -- ==========================================
 local espFolder = Instance.new("Folder", Workspace)
 
@@ -383,23 +384,29 @@ end
 
 local function isItem(obj, category)
     local n = obj.Name:lower()
-    if n:find("sign") or n:find("wall") or n:find("mesh") or n:find("part") or n:find("building") or n:find("floor") then return false end
+    if n:find("sign") or n:find("wall") or n:find("mesh") or n:find("part") or n:find("building") or n:find("floor") or n:find("tutorial") then return false end
     
-    if category == "Weapon" then 
-        return (n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol")) and (obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChildWhichIsA("ProximityPrompt"))
+    local isGun = n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle")
+
+    if category == "ShopWeapon" then 
+        return isGun and (obj:FindFirstChild("Price") or obj:FindFirstChild("Cost") or obj:FindFirstChildWhichIsA("NumberValue"))
+    elseif category == "DropWeapon" then 
+        local isPickable = obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChildWhichIsA("ProximityPrompt")
+        local hasPrice = obj:FindFirstChild("Price") or obj:FindFirstChild("Cost")
+        return isGun and isPickable and not hasPrice
     elseif category == "Armor" then 
         return (n:find("armor") or n:find("vest") or n:find("helmet")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop"))
     elseif category == "Money" then 
-        return (n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n:find("cash") or n:find("money")) and not n:find("register")
+        return (n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n:find("cash") or n:find("money")) and not n:find("register") and not n:find("tutorial")
     elseif category == "Food" then 
         return (n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop")) 
     end
     return false
 end
 
--- АВТО-ФАРМ
+-- АВТО-ФАРМ (Оптимизирован: реже сканирует, ищет только близкие объекты)
 task.spawn(function()
-    while task.wait(0.15) do 
+    while task.wait(0.3) do 
         if autoFarmBank and player.Character then
             local hrp = player.Character:FindFirstChild("HumanoidRootPart")
             if hrp then
@@ -410,7 +417,7 @@ task.spawn(function()
                     if obj:IsA("BasePart") or obj:IsA("Model") then
                         local n = obj.Name:lower()
                         if (n == "bankcash" or n == "cash" or n == "money" or n == "moneydrop") then
-                            if not (n:find("register") or n:find("atm") or n:find("cashier") or n:find("shelf") or n:find("box") or n:find("safe") or n:find("vault")) then
+                            if not (n:find("register") or n:find("atm") or n:find("cashier") or n:find("shelf") or n:find("box") or n:find("safe") or n:find("vault") or n:find("tutorial")) then
                                 local click = obj:FindFirstChildWhichIsA("ClickDetector", true)
                                 local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
                                 if click or prompt then
@@ -444,9 +451,13 @@ task.spawn(function()
     end
 end)
 
--- Отрисовка ESP
+-- Отрисовка ESP (Оптимизировано: сканируем раз в 2 секунды и проверяем дистанцию)
 task.spawn(function()
-    while task.wait(1) do
+    while task.wait(2) do
+        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
+        
+        -- Удаляем устаревшие объекты
         for p, d in pairs(tracked) do
             if not p.Parent or not espToggles[d.cat] then
                 d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil
@@ -455,9 +466,14 @@ task.spawn(function()
 
         for _, obj in ipairs(Workspace:GetDescendants()) do
             if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
-                for cat, isOn in pairs(espToggles) do
-                    if isOn and isItem(obj, cat) then
-                        createVisual(obj, ESP_COLORS[cat], cat)
+                local objPos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
+                
+                -- Отрисовываем только если объект в радиусе 500 метров
+                if objPos and (objPos - hrp.Position).Magnitude < 500 then
+                    for cat, isOn in pairs(espToggles) do
+                        if isOn and isItem(obj, cat) then
+                            createVisual(obj, ESP_COLORS[cat], cat)
+                        end
                     end
                 end
             end
