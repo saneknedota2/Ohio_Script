@@ -15,7 +15,6 @@ local COLORS = {
 
 local currentMode = "OFF"
 local autoFarmBank = false
-local tpFarm = false
 local tracked = {}
 
 -- GUI
@@ -24,7 +23,7 @@ screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 220, 0, 380)
+mainFrame.Size = UDim2.new(0, 220, 0, 350)
 mainFrame.Position = UDim2.new(0, 20, 0, 60)
 mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 mainFrame.BorderSizePixel = 0
@@ -46,19 +45,13 @@ local function createButton(text, mode, color, yPos)
     btn.MouseButton1Click:Connect(function()
         if mode == "AutoFarmBank" then
             autoFarmBank = not autoFarmBank
-            if autoFarmBank then tpFarm = false end
             btn.BackgroundColor3 = autoFarmBank and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(30, 30, 40)
-            btn.Text = autoFarmBank and "ФАРМ РЯДОМ: ВКЛ" or "Авто-Фарм (рядом)"
-        elseif mode == "TPFarm" then
-            tpFarm = not tpFarm
-            if tpFarm then autoFarmBank = false end
-            btn.BackgroundColor3 = tpFarm and Color3.fromRGB(0, 255, 255) or Color3.fromRGB(30, 30, 40)
-            btn.Text = tpFarm and "ТП-ФАРМ (AFK): ВКЛ" or "ТП-Фарм (AFK)"
+            btn.Text = autoFarmBank and "ФАРМ БАНКА: ВКЛ" or "Авто-Фарм Банка"
         else
             currentMode = mode
             for p, d in pairs(tracked) do d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
             for _, child in ipairs(mainFrame:GetChildren()) do
-                if child:IsA("TextButton") and child ~= btn and not child.Text:find("ФАРМ") then
+                if child:IsA("TextButton") and child ~= btn and child.Text ~= "ФАРМ БАНКА: ВКЛ" and child.Text ~= "Авто-Фарм Банка" then
                     child.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
                 end
             end
@@ -73,8 +66,7 @@ createButton("Оружие (Подобрать)", "DropWeapon", COLORS.DropWeapo
 createButton("Броня", "Armor", COLORS.Armor, 115)
 createButton("Деньги / Сейфы", "Money", COLORS.Money, 150)
 createButton("Еда", "Food", COLORS.Food, 185)
-createButton("Авто-Фарм (рядом)", "AutoFarmBank", Color3.fromRGB(0, 255, 100), 220)
-createButton("ТП-Фарм (AFK)", "TPFarm", Color3.fromRGB(0, 255, 255), 255)
+createButton("Авто-Фарм Банка", "AutoFarmBank", Color3.fromRGB(0, 255, 100), 220)
 
 local espFolder = Instance.new("Folder", Workspace)
 
@@ -123,29 +115,24 @@ local function isItem(obj, category)
     return false
 end
 
--- Бьем руками/оружием
-local function attack()
-    local tool = player.Character and player.Character:FindFirstChildWhichIsA("Tool")
-    if tool then tool:Activate() end
-    VirtualUser:CaptureController()
-    VirtualUser:Button1Down(Vector2.new(0,0))
-    task.wait(0.05)
-    VirtualUser:Button1Up(Vector2.new(0,0))
-end
-
--- ЛОГИКА ФАРМА
+-- УМНЫЙ АВТО-ФАРМ (Только банкоматы/кассы, без щитов и брони)
 task.spawn(function()
-    while task.wait(0.3) do
-        if (autoFarmBank or tpFarm) and player.Character then
+    while task.wait(0.2) do
+        if autoFarmBank and player.Character then
             local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+            local tool = player.Character:FindFirstChildWhichIsA("Tool")
+            
             if hrp then
                 local closestObj = nil
-                local shortestDist = tpFarm and 999999 or 20 -- Если ТП-фарм, ищем по всей карте
+                local shortestDist = 7 -- Бьем только то, что в радиусе 7 метров (чтобы не тянуло)
 
                 for _, obj in ipairs(Workspace:GetDescendants()) do
                     if obj:IsA("BasePart") or obj:IsA("Model") then
                         local n = obj.Name:lower()
-                        if (n:find("atm") or n:find("register") or n:find("vault") or n:find("safe") or n:find("cash")) and not n:find("sign") then
+                        -- Ищем ТОЛЬКО банкоматы, кассы и сейфы. Щиты (shield/armor) игнорируем.
+                        if (n:find("atm") or n:find("register") or n:find("vault") or n:find("safe") or n:find("cash")) 
+                           and not n:find("sign") and not n:find("shield") and not n:find("armor") then
+                            
                             local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
                             if pos then
                                 local dist = (pos - hrp.Position).Magnitude
@@ -158,19 +145,16 @@ task.spawn(function()
                     end
                 end
 
+                -- Если банкомат рядом, спамим удары
                 if closestObj then
-                    local pos = closestObj:IsA("BasePart") and closestObj.Position or (closestObj.PrimaryPart and closestObj.PrimaryPart.Position)
-                    
-                    -- Если это ТП-фарм и мы далеко, телепортируемся
-                    if tpFarm and shortestDist > 5 then
-                        hrp.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
-                        task.wait(0.2)
+                    if tool then
+                        tool:Activate()
                     end
-                    
-                    -- Бьем, если мы близко
-                    if (pos - hrp.Position).Magnitude < 10 then
-                        attack()
-                    end
+                    -- Имитация удара рукой (ЛКМ)
+                    VirtualUser:CaptureController()
+                    VirtualUser:Button1Down(Vector2.new(0,0))
+                    task.wait(0.1)
+                    VirtualUser:Button1Up(Vector2.new(0,0))
                 end
             end
         end
