@@ -24,10 +24,11 @@ screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 450, 0, 40) -- Свернутое состояние
-mainFrame.Position = UDim2.new(0.5, -225, 0.1, 0)
+mainFrame.Size = UDim2.new(0, 400, 0, 40) -- Свернуто
+mainFrame.Position = UDim2.new(0.5, -200, 0.1, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 mainFrame.BorderSizePixel = 0
+mainFrame.Active = false
 mainFrame.Parent = screenGui
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
 
@@ -35,10 +36,11 @@ local mainStroke = Instance.new("UIStroke", mainFrame)
 mainStroke.Thickness = 2
 mainStroke.Color = Color3.fromRGB(0, 150, 255)
 
--- Панель для перетаскивания (верхняя полоска)
+-- Панель перетаскивания
 local titleBar = Instance.new("Frame")
 titleBar.Size = UDim2.new(1, 0, 0, 40)
 titleBar.BackgroundTransparency = 1
+titleBar.Active = true
 titleBar.Parent = mainFrame
 
 local titleText = Instance.new("TextLabel")
@@ -48,11 +50,10 @@ titleText.BackgroundTransparency = 1
 titleText.Text = "ROCKET | Ohio Menu"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
-titleText.TextSize = 18
+titleText.TextSize = 16
 titleText.TextXAlignment = Enum.TextXAlignment.Left
 titleText.Parent = titleBar
 
--- Кнопка сворачивания/разворачивания
 local arrowBtn = Instance.new("TextButton")
 arrowBtn.Size = UDim2.new(0, 40, 0, 40)
 arrowBtn.Position = UDim2.new(1, -40, 0, 0)
@@ -63,7 +64,6 @@ arrowBtn.Font = Enum.Font.GothamBold
 arrowBtn.TextSize = 20
 arrowBtn.Parent = titleBar
 
--- Контейнер контента
 local contentFrame = Instance.new("Frame")
 contentFrame.Size = UDim2.new(1, 0, 1, -40)
 contentFrame.Position = UDim2.new(0, 0, 0, 40)
@@ -71,36 +71,28 @@ contentFrame.BackgroundTransparency = 1
 contentFrame.Visible = false
 contentFrame.Parent = mainFrame
 
+-- Сворачивание
 local isOpen = false
-local function toggleMenu()
+arrowBtn.MouseButton1Click:Connect(function()
     isOpen = not isOpen
     if isOpen then
-        mainFrame.Size = UDim2.new(0, 450, 0, 320)
+        mainFrame.Size = UDim2.new(0, 400, 0, 340)
         arrowBtn.Text = "▲"
         contentFrame.Visible = true
     else
-        mainFrame.Size = UDim2.new(0, 450, 0, 40)
+        mainFrame.Size = UDim2.new(0, 400, 0, 40)
         arrowBtn.Text = "▼"
         contentFrame.Visible = false
     end
-end
-arrowBtn.MouseButton1Click:Connect(toggleMenu)
+end)
 
--- ==========================================
--- ПЕРЕТАСКИВАНИЕ МЕНЮ (DRAG)
--- ==========================================
+-- Перетаскивание (Drag)
 local dragging, dragInput, dragStart, startPos
 titleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
         dragging = true
         dragStart = input.Position
         startPos = mainFrame.Position
-        
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
     end
 end)
 titleBar.InputChanged:Connect(function(input)
@@ -112,6 +104,11 @@ UserInputService.InputChanged:Connect(function(input)
     if input == dragInput and dragging then
         local delta = input.Position - dragStart
         mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
     end
 end)
 
@@ -126,7 +123,7 @@ tabBar.Parent = contentFrame
 
 local tabLayout = Instance.new("UIListLayout", tabBar)
 tabLayout.FillDirection = Enum.FillDirection.Horizontal
-tabLayout.Padding = UDim.new(0, 20)
+tabLayout.Padding = UDim.new(0, 15)
 tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local pageContainer = Instance.new("Frame")
@@ -136,14 +133,17 @@ pageContainer.BackgroundTransparency = 1
 pageContainer.Parent = contentFrame
 
 local pages = {}
+local tabButtons = {}
+
 local function createPage(name)
-    local frame = Instance.new("Frame")
+    local frame = Instance.new("ScrollingFrame") -- Используем Scrolling, чтобы ничего не вылезало
     frame.Size = UDim2.new(1, 0, 1, 0)
     frame.BackgroundTransparency = 1
+    frame.BorderSizePixel = 0
+    frame.ScrollBarThickness = 2
     frame.Visible = false
     frame.Parent = pageContainer
     
-    -- Автоматическое выравнивание кнопок в столбик
     local layout = Instance.new("UIListLayout", frame)
     layout.Padding = UDim.new(0, 8)
     layout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -159,6 +159,9 @@ local pageCustom = createPage("CUSTOM")
 
 local function switchTab(tabName)
     for name, frame in pairs(pages) do frame.Visible = (name == tabName) end
+    for tabText, btn in pairs(tabButtons) do
+        btn.TextColor3 = (tabText == tabName) and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(200, 200, 200)
+    end
 end
 
 local function createTabButton(text, tabName)
@@ -167,26 +170,24 @@ local function createTabButton(text, tabName)
     btn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
     btn.Text = text
     btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 14
+    btn.TextSize = 13
     btn.TextColor3 = Color3.fromRGB(200, 200, 200)
     btn.Parent = tabBar
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     
     btn.MouseButton1Click:Connect(function()
         switchTab(tabName)
-        for _, child in ipairs(tabBar:GetChildren()) do
-            if child:IsA("TextButton") then child.TextColor3 = Color3.fromRGB(200, 200, 200) end
-        end
-        btn.TextColor3 = Color3.fromRGB(0, 150, 255)
     end)
+    
+    tabButtons[tabName] = btn
 end
 
-createTabButton("main", "main")
+createTabButton("Main", "main")
 createTabButton("ESP", "ESP")
-createTabButton("HUMAN", "HUMAN")
-createTabButton("CUSTOM", "CUSTOM")
+createTabButton("Human", "HUMAN")
+createTabButton("Custom", "CUSTOM")
 
--- Универсальная функция создания кнопки
+-- Универсальная кнопка
 local function createButton(parent, text, callback)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -10, 0, 35)
@@ -237,7 +238,7 @@ createESPToggle("Деньги / Сейфы", "Money")
 createESPToggle("Еда", "Food")
 
 -- ==========================================
--- 3. HUMAN (Скорость и Прыжок через TextBox)
+-- 3. HUMAN (Скорость и Прыжок)
 -- ==========================================
 local function createStatSetting(parent, label, defaultVal, callback)
     local frame = Instance.new("Frame")
@@ -268,14 +269,17 @@ local function createStatSetting(parent, label, defaultVal, callback)
     txtBox.Parent = frame
     Instance.new("UICorner", txtBox).CornerRadius = UDim.new(0, 4)
     
-    txtBox.FocusLost:Connect(function()
+    local function apply()
         local num = tonumber(txtBox.Text)
         if num then
             callback(num)
         else
             txtBox.Text = tostring(defaultVal)
         end
-    end)
+    end
+    
+    txtBox.FocusLost:Connect(apply)
+    txtBox.ReturnPressedFromOnScreenKeyboard:Connect(apply)
 end
 
 createStatSetting(pageHuman, "Скорость:", 16, function(val)
@@ -287,7 +291,7 @@ end)
 createStatSetting(pageHuman, "Прыжок:", 50, function(val)
     if player.Character and player.Character:FindFirstChild("Humanoid") then
         player.Character.Humanoid.JumpPower = val
-        player.Character.Humanoid.UseJumpPower = true -- Отключаем JumpHeight
+        player.Character.Humanoid.UseJumpPower = true
     end
 end)
 
@@ -321,7 +325,6 @@ for i, color in ipairs(colors) do
     end)
 end
 
--- Кнопки изменения толщины обводки
 local thickFrame = Instance.new("Frame")
 thickFrame.Size = UDim2.new(1, -10, 0, 35)
 thickFrame.BackgroundTransparency = 1
@@ -348,7 +351,6 @@ createThickBtn("Толстая", 5)
 
 -- Инициализация
 switchTab("main")
-tabBar:GetChildren()[1].TextColor3 = Color3.fromRGB(0, 150, 255)
 
 -- ==========================================
 -- ЛОГИКА ESP И АВТО-ФАРМА
@@ -395,6 +397,7 @@ local function isItem(obj, category)
     return false
 end
 
+-- АВТО-ФАРМ
 task.spawn(function()
     while task.wait(0.15) do 
         if autoFarmBank and player.Character then
@@ -441,6 +444,7 @@ task.spawn(function()
     end
 end)
 
+-- Отрисовка ESP
 task.spawn(function()
     while task.wait(1) do
         for p, d in pairs(tracked) do
