@@ -4,81 +4,95 @@ local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Оставляем только то, что реально нужно (без стен и дверей)
-local KEYWORDS = {
-    Bank    = { "vault", "safe", "deposit", "bank_door" },
-    Jeweler = { "jewel", "jeweler", "gem", "diamond", "display" },
-    Item    = { "item", "loot", "pickup", "cash", "money", "weapon", "gun" }
-}
+-- Настройки
+local WEAPON_KEYWORDS = { "gun", "weapon", "ak", "m4", "pistol", "shotgun", "knife", "ammo", "glock" }
+local ITEM_KEYWORDS = { "cash", "money", "loot", "pickup", "item" }
+local BANK_KEYWORDS = { "vault", "safe", "deposit", "bank" }
+local JEWEL_KEYWORDS = { "jewel", "gem", "diamond", "ring" }
 
 local COLORS = {
-    Bank    = Color3.fromRGB(255, 200, 0),
-    Jeweler = Color3.fromRGB(180, 100, 255),
-    Item    = Color3.fromRGB(0, 255, 150),
-    Search  = Color3.fromRGB(255, 50, 50)
+    Weapon = Color3.fromRGB(255, 50, 50),
+    Item   = Color3.fromRGB(0, 255, 150),
+    Bank   = Color3.fromRGB(255, 200, 0),
+    Jewel  = Color3.fromRGB(180, 100, 255)
 }
 
--- ==== GUI ====
+local currentMode = "OFF"
+local customSearch = ""
+local tracked = {}
+
+-- GUI
 local screenGui = Instance.new("ScreenGui")
 screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 260, 0, 400)
-mainFrame.Position = UDim2.new(0, 10, 0, 50)
+mainFrame.Size = UDim2.new(0, 220, 0, 220)
+mainFrame.Position = UDim2.new(0, 20, 0, 80)
 mainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
 
-local scroll = Instance.new("ScrollingFrame")
-scroll.Size = UDim2.new(1, -10, 1, -10)
-scroll.Position = UDim2.new(0, 5, 0, 5)
-scroll.BackgroundTransparency = 1
-scroll.CanvasSize = UDim2.new(0, 0, 0, 500)
-scroll.Parent = mainFrame
-local list = Instance.new("UIListLayout", scroll)
-list.Padding = UDim.new(0, 5)
-
--- Кнопки
-local function createToggle(name, accent)
+-- Выпадающий список (имитация кнопками)
+local function createButton(text, mode, color)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 0, 35)
+    btn.Size = UDim2.new(1, -20, 0, 30)
+    btn.Position = UDim2.new(0, 10, 0, 10 + (#mainFrame:GetChildren() * 5) * 30) -- авто-позиция
     btn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-    btn.Text = name .. ": OFF"
-    btn.TextColor3 = Color3.fromRGB(200, 200, 210)
-    btn.Parent = scroll
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 13
+    btn.Parent = mainFrame
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-    btn:SetAttribute("Enabled", false)
+    
     btn.MouseButton1Click:Connect(function()
-        local on = not btn:GetAttribute("Enabled")
-        btn:SetAttribute("Enabled", on)
-        btn.Text = name .. ": " .. (on and "ON" or "OFF")
-        btn.BackgroundColor3 = on and accent or Color3.fromRGB(30, 30, 40)
-        btn.TextColor3 = on and Color3.new(0,0,0) or Color3.fromRGB(200, 200, 210)
+        currentMode = mode
+        customSearch = ""
+        searchBox.Text = ""
+        -- Очистка визуалов при переключении
+        for p, d in pairs(tracked) do d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
+        
+        -- Визуал нажатой кнопки
+        for _, child in ipairs(mainFrame:GetChildren()) do
+            if child:IsA("TextButton") then
+                child.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+            end
+        end
+        btn.BackgroundColor3 = color
     end)
-    return btn
 end
 
-local toggleBank = createToggle("Bank / Vault", COLORS.Bank)
-local toggleJeweler = createToggle("Jeweler / Safe", COLORS.Jeweler)
-local toggleItems = createToggle("Items", COLORS.Item)
+createButton("ВЫКЛЮЧИТЬ ВСЁ", "OFF", Color3.fromRGB(60,60,60))
+createButton("Все Оружие", "Weapon", COLORS.Weapon)
+createButton("Все Предметы (Кэш/Лут)", "Item", COLORS.Item)
+createButton("Банк / Сейфы", "Bank", COLORS.Bank)
+createButton("Ювелирка", "Jewel", COLORS.Jewel)
 
--- Поиск
+-- Строка поиска
 local searchBox = Instance.new("TextBox")
-searchBox.Size = UDim2.new(1, 0, 0, 35)
+searchBox.Size = UDim2.new(1, -20, 0, 30)
+searchBox.Position = UDim2.new(0, 10, 1, -40)
 searchBox.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-searchBox.PlaceholderText = "Поиск предмета (например: cash)"
+searchBox.PlaceholderText = "Введи название (например: ak)"
 searchBox.Text = ""
 searchBox.TextColor3 = Color3.new(1,1,1)
 searchBox.Font = Enum.Font.Gotham
 searchBox.TextSize = 13
-searchBox.Parent = scroll
+searchBox.Parent = mainFrame
 Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 6)
 
--- ==== ЛОГИКА ====
+searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    customSearch = searchBox.Text:lower()
+    if customSearch ~= "" then
+        currentMode = "Search"
+        for p, d in pairs(tracked) do d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
+    end
+end)
+
+-- Хранилище визуалов
 local espFolder = Instance.new("Folder", Workspace)
-local tracked = {}
 
 local function createVisual(part, color)
     if tracked[part] then return end
@@ -104,42 +118,40 @@ local function createVisual(part, color)
     tracked[part] = {hl=hl, bb=bb}
 end
 
-RunService.Heartbeat:Connect(function()
-    local sText = searchBox.Text:lower()
-    
-    -- Удаляем старые метки, если кнопки выключены или если это стены
-    for part, data in pairs(tracked) do
-        if not part.Parent or 
-           (data.color == COLORS.Bank and not toggleBank:GetAttribute("Enabled")) or
-           (data.color == COLORS.Jeweler and not toggleJeweler:GetAttribute("Enabled")) or
-           (data.color == COLORS.Item and not toggleItems:GetAttribute("Enabled")) or
-           (sText ~= "" and not part.Name:lower():find(sText)) then
-            data.hl:Destroy()
-            data.bb:Destroy()
-            tracked[part] = nil
-        end
+-- Функция проверки совпадений
+local function checkMatch(name, keywords)
+    for _, k in ipairs(keywords) do
+        if name:find(k) then return true end
     end
+    return false
+end
 
-    -- Ищем новые
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
-            local n = obj.Name:lower()
-            
-            -- Проверка на поиск
-            if sText ~= "" and n:find(sText) then
-                createVisual(obj, COLORS.Search)
-            else
-                -- Банк
-                if toggleBank:GetAttribute("Enabled") then
-                    for _, k in ipairs(KEYWORDS.Bank) do if n:find(k) then createVisual(obj, COLORS.Bank) end end
+-- Сканирование (раз в 2 секунды, чтобы не лагало)
+task.spawn(function()
+    while task.wait(2) do
+        if currentMode == "OFF" then
+            for p, d in pairs(tracked) do d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
+        else
+            for part, data in pairs(tracked) do
+                if not part.Parent then
+                    data.hl:Destroy(); data.bb:Destroy(); tracked[part] = nil
                 end
-                -- Ювелирка
-                if toggleJeweler:GetAttribute("Enabled") then
-                    for _, k in ipairs(KEYWORDS.Jeweler) do if n:find(k) then createVisual(obj, COLORS.Jeweler) end end
-                end
-                -- Предметы
-                if toggleItems:GetAttribute("Enabled") then
-                    for _, k in ipairs(KEYWORDS.Item) do if n:find(k) then createVisual(obj, COLORS.Item) end end
+            end
+
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
+                    local n = obj.Name:lower()
+                    if currentMode == "Search" and n:find(customSearch) then
+                        createVisual(obj, Color3.fromRGB(255, 255, 255))
+                    elseif currentMode == "Weapon" and checkMatch(n, WEAPON_KEYWORDS) then
+                        createVisual(obj, COLORS.Weapon)
+                    elseif currentMode == "Item" and checkMatch(n, ITEM_KEYWORDS) then
+                        createVisual(obj, COLORS.Item)
+                    elseif currentMode == "Bank" and checkMatch(n, BANK_KEYWORDS) then
+                        createVisual(obj, COLORS.Bank)
+                    elseif currentMode == "Jewel" and checkMatch(n, JEWEL_KEYWORDS) then
+                        createVisual(obj, COLORS.Jewel)
+                    end
                 end
             end
         end
