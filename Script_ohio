@@ -18,11 +18,19 @@ local desiredSpeed = 16
 local desiredJump = 50
 local tracked = {}
 
-local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false }
+local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, RedCard = false, BlueCard = false }
 local ESP_COLORS = {
     ShopWeapon = Color3.fromRGB(255, 100, 100), DropWeapon = Color3.fromRGB(200, 0, 0),
-    Armor = Color3.fromRGB(50, 150, 255), Money = Color3.fromRGB(255, 200, 0), Food = Color3.fromRGB(0, 255, 150)
+    Armor = Color3.fromRGB(50, 150, 255), Money = Color3.fromRGB(255, 200, 0), Food = Color3.fromRGB(0, 255, 150),
+    RedCard = Color3.fromRGB(255, 0, 0), BlueCard = Color3.fromRGB(0, 100, 255),
+    Search = Color3.fromRGB(255, 255, 255) -- Белый для поиска
 }
+
+-- Переменные для поиска
+local searchText = ""
+local searchResults = {}
+local searchObjects = {}
+local searchESPActive = false
 
 -- ==========================================
 -- ПЛАВАЮЩАЯ КНОПКА AIMBOT
@@ -127,7 +135,7 @@ local isOpen = false
 arrowBtn.MouseButton1Click:Connect(function()
     isOpen = not isOpen
     if isOpen then
-        mainFrame.Size = UDim2.new(0, 420, 0, 480)
+        mainFrame.Size = UDim2.new(0, 420, 0, 520) -- Увеличили высоту для поиска
         arrowBtn.Text = "▲"
         contentFrame.Visible = true
     else
@@ -169,7 +177,7 @@ tabLayout.Padding = UDim.new(0, 5)
 tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local pageContainer = Instance.new("Frame")
-pageContainer.Size = UDim2.new(1, -20, 1, -60)
+pageContainer.Size = UDim2.new(1, -20, 1, -100) -- Оставили место снизу для поиска
 pageContainer.Position = UDim2.new(0, 10, 0, 50)
 pageContainer.BackgroundTransparency = 1
 pageContainer.Parent = contentFrame
@@ -222,7 +230,6 @@ createTabButton("ESP", "ESP")
 createTabButton("Human", "HUMAN")
 createTabButton("Custom", "CUSTOM")
 
--- Функция кнопок
 local function createToggleButton(parent, labelText, initialVal, colorOn, callback)
     local isOn = initialVal
     local btn = Instance.new("TextButton")
@@ -255,21 +262,18 @@ createToggleButton(pageESP, "Оружие (Подобрать)", false, ESP_COLO
 createToggleButton(pageESP, "Броня", false, ESP_COLORS.Armor, function(state) espToggles.Armor = state end)
 createToggleButton(pageESP, "Деньги / Сейфы", false, ESP_COLORS.Money, function(state) espToggles.Money = state end)
 createToggleButton(pageESP, "Еда", false, ESP_COLORS.Food, function(state) espToggles.Food = state end)
+createToggleButton(pageESP, "Красные карточки", false, ESP_COLORS.RedCard, function(state) espToggles.RedCard = state end)
+createToggleButton(pageESP, "Синие карточки", false, ESP_COLORS.BlueCard, function(state) espToggles.BlueCard = state end)
 
--- ==========================================
--- HUMAN (С подразделом Аимбота)
--- ==========================================
--- Контейнер для Аимбота (Dropdown)
+-- HUMAN
 local aimbotContainer = Instance.new("Frame")
-aimbotContainer.Size = UDim2.new(1, -10, 0, 35) -- Изначально закрыт
+aimbotContainer.Size = UDim2.new(1, -10, 0, 35)
 aimbotContainer.BackgroundTransparency = 1
 aimbotContainer.ClipsDescendants = true
 aimbotContainer.Parent = pageHuman
-
 local aimbotLayout = Instance.new("UIListLayout", aimbotContainer)
 aimbotLayout.Padding = UDim.new(0, 8)
 
--- Кнопка открытия папки Аимбота
 local btnOpenAimbot = Instance.new("TextButton")
 btnOpenAimbot.Size = UDim2.new(1, 0, 0, 35)
 btnOpenAimbot.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
@@ -284,7 +288,7 @@ local aimbotOpen = false
 btnOpenAimbot.MouseButton1Click:Connect(function()
     aimbotOpen = not aimbotOpen
     if aimbotOpen then
-        aimbotContainer.Size = UDim2.new(1, -10, 0, 280) -- Высота под все настройки
+        aimbotContainer.Size = UDim2.new(1, -10, 0, 280)
         btnOpenAimbot.Text = "▲ Аимбот (Настройки)"
     else
         aimbotContainer.Size = UDim2.new(1, -10, 0, 0)
@@ -292,22 +296,15 @@ btnOpenAimbot.MouseButton1Click:Connect(function()
     end
 end)
 
--- Сами настройки аимбота внутри контейнера
 createToggleButton(aimbotContainer, "Включить Аимбот", false, Color3.fromRGB(50, 200, 50), function(state) 
     aimbotEnabled = state
-    if state then
-        floatBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
-        floatBtn.Text = "AIM\nON"
-    else
-        floatBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        floatBtn.Text = "AIM\nOFF"
-    end
+    if state then floatBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50); floatBtn.Text = "AIM\nON"
+    else floatBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50); floatBtn.Text = "AIM\nOFF" end
 end)
 createToggleButton(aimbotContainer, "Проверка на стены", true, Color3.fromRGB(0, 150, 255), function(state) wallCheckEnabled = state end)
 createToggleButton(aimbotContainer, "Auto-Shoot (Авто-стрельба)", false, Color3.fromRGB(255, 100, 0), function(state) autoShootEnabled = state end)
 createToggleButton(aimbotContainer, "Silent Aim", false, Color3.fromRGB(255, 0, 0), function(state) silentAimEnabled = state end)
 
--- Выбор части тела
 local partFrame = Instance.new("Frame")
 partFrame.Size = UDim2.new(1, 0, 0, 60)
 partFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
@@ -347,7 +344,6 @@ end
 createPartBtn("Голова", "Head", 10)
 createPartBtn("Тело", "HumanoidRootPart", 95)
 
--- Радиус
 local radiusFrame = Instance.new("Frame")
 radiusFrame.Size = UDim2.new(1, 0, 0, 50)
 radiusFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
@@ -379,7 +375,6 @@ radiusBox.FocusLost:Connect(function()
     if val and val > 0 then fovRadius = val; radiusLabel.Text = "Радиус (FOV): " .. val else radiusBox.Text = tostring(fovRadius) end
 end)
 
--- Скорость и Прыжок (в HUMAN)
 local function createStatSetting(parent, label, defaultVal, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, -10, 0, 35)
@@ -401,7 +396,7 @@ local function createStatSetting(parent, label, defaultVal, callback)
         if num then callback(num) else txtBox.Text = tostring(defaultVal) end
     end
     txtBox.FocusLost:Connect(apply)
-    txtBox.ReturnPressedFromOnScreenKeyboard:Connect(apply)
+    txtBox.ReturnedPressedFromOnScreenKeyboard:Connect(apply)
 end
 
 createStatSetting(pageHuman, "Скорость:", 16, function(val) desiredSpeed = val end)
@@ -419,10 +414,147 @@ for i, color in ipairs(colors) do
     colorBtn.MouseButton1Click:Connect(function() mainStroke.Color = color; arrowBtn.TextColor3 = color; titleText.TextColor3 = color end)
 end
 
+-- ==========================================
+-- СТРОКА ПОИСКА И ПОДСКАЗКИ (В САМОМ НИЗУ)
+-- ==========================================
+local searchBarFrame = Instance.new("Frame")
+searchBarFrame.Size = UDim2.new(1, -20, 0, 35)
+searchBarFrame.Position = UDim2.new(0, 10, 1, -45) -- В самом низу меню
+searchBarFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+searchBarFrame.Parent = contentFrame
+Instance.new("UICorner", searchBarFrame).CornerRadius = UDim.new(0, 6)
+
+local searchBox = Instance.new("TextBox")
+searchBox.Size = UDim2.new(1, -20, 1, 0)
+searchBox.Position = UDim2.new(0, 10, 0, 0)
+searchBox.BackgroundTransparency = 1
+searchBox.PlaceholderText = "Поиск предмета (например: ak47, красная карта)"
+searchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+searchBox.Text = ""
+searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+searchBox.Font = Enum.Font.GothamBold
+searchBox.TextSize = 13
+searchBox.TextXAlignment = Enum.TextXAlignment.Left
+searchBox.Parent = searchBarFrame
+
+-- Выпадающий список подсказок
+local suggestionList = Instance.new("ScrollingFrame")
+suggestionList.Size = UDim2.new(1, -20, 0, 120)
+suggestionList.Position = UDim2.new(0, 10, 1, -160) -- Над строкой поиска
+suggestionList.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+suggestionList.BorderSizePixel = 0
+suggestionList.ScrollBarThickness = 2
+suggestionList.Visible = false
+suggestionList.Parent = contentFrame
+Instance.new("UICorner", suggestionList).CornerRadius = UDim.new(0, 6)
+local sugLayout = Instance.new("UIListLayout", suggestionList)
+sugLayout.Padding = UDim.new(0, 2)
+
+-- Функция поиска и обновления подсказок
+local function updateSuggestions()
+    -- Очищаем старые подсказки
+    for _, child in ipairs(suggestionList:GetChildren()) do
+        if child:IsA("TextButton") then child:Destroy() end
+    end
+    
+    local query = searchBox.Text:lower()
+    if query == "" then
+        suggestionList.Visible = false
+        return
+    end
+    
+    local foundNames = {}
+    -- Сканируем игру на совпадения
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        if (obj:IsA("BasePart") or obj:IsA("Model")) and obj ~= screenGui then
+            local name = obj.Name
+            if name:lower():find(query) and not name:lower():find("wall") and not name:lower():find("mesh") then
+                -- Чтобы не было 1000 одинаковых подсказок, запоминаем уникальные имена
+                if not foundNames[name] then
+                    foundNames[name] = obj
+                end
+            end
+        end
+    end
+    
+    -- Создаем кнопки для уникальных имен
+    local count = 0
+    for name, obj in pairs(foundNames) do
+        count = count + 1
+        if count > 20 then break end -- Показываем максимум 20 подсказок
+        
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, -10, 0, 25)
+        btn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+        btn.Text = name
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Font = Enum.Font.Gotham
+        btn.TextSize = 12
+        btn.TextXAlignment = Enum.TextXAlignment.Left
+        btn.Parent = suggestionList
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+        
+        btn.MouseButton1Click:Connect(function()
+            -- При клике на подсказку, включаем ESP для этого конкретного объекта
+            searchESPActive = true
+            searchObjects = {obj} -- Массив только с этим объектом
+            suggestionList.Visible = false
+            searchBox.Text = "" -- Очищаем поле
+        end)
+    end
+    
+    suggestionList.Visible = (count > 0)
+end
+
+-- Отслеживаем ввод текста
+searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    updateSuggestions()
+end)
+
+searchBox.FocusLost:Connect(function(enterPressed)
+    if enterPressed then
+        suggestionList.Visible = false
+    else
+        -- Если кликнули мимо поля, но ввели текст, запускаем поиск по всем совпадениям
+        local query = searchBox.Text:lower()
+        if query ~= "" then
+            searchESPActive = true
+            searchObjects = {}
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if (obj:IsA("BasePart") or obj:IsA("Model")) and obj.Name:lower():find(query) then
+                    table.insert(searchObjects, obj)
+                end
+            end
+        end
+    end
+end)
+
+-- Кнопка сброса поиска
+local clearSearchBtn = Instance.new("TextButton")
+clearSearchBtn.Size = UDim2.new(0, 25, 0, 25)
+clearSearchBtn.Position = UDim2.new(1, -30, 0, 5)
+clearSearchBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+clearSearchBtn.Text = "X"
+clearSearchBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+clearSearchBtn.Font = Enum.Font.GothamBold
+clearSearchBtn.Parent = searchBarFrame
+Instance.new("UICorner", clearSearchBtn).CornerRadius = UDim.new(0, 4)
+
+clearSearchBtn.MouseButton1Click:Connect(function()
+    searchBox.Text = ""
+    searchESPActive = false
+    searchObjects = {}
+    suggestionList.Visible = false
+    -- Удаляем визуалы поиска
+    for p, d in pairs(tracked) do
+        if d.cat == "Search" then d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
+    end
+end)
+
 switchTab("main")
 
 -- ==========================================
--- ЛОГИКА РАБОТЫ
+-- ЛОГИКА РАБОТЫ (Аим, ESP, Автофарм)
 -- ==========================================
 local fovCircle = Instance.new("Frame")
 fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
@@ -442,7 +574,6 @@ local function getClosestTarget()
     local closestPlayer = nil
     local shortestDist = fovRadius
     local centerPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-    
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= player and p.Character then
             local targetPart = p.Character:FindFirstChild(targetPartName) or p.Character:FindFirstChild("Head")
@@ -458,14 +589,9 @@ local function getClosestTarget()
                             raycastParams.FilterDescendantsInstances = {player.Character, p.Character}
                             raycastParams.FilterType = Enum.RaycastFilterType.Exclude
                             local rayResult = Workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-                            
-                            if not rayResult then
-                                shortestDist = dist
-                                closestPlayer = targetPart
-                            end
+                            if not rayResult then shortestDist = dist; closestPlayer = targetPart end
                         else
-                            shortestDist = dist
-                            closestPlayer = targetPart
+                            shortestDist = dist; closestPlayer = targetPart
                         end
                     end
                 end
@@ -476,35 +602,26 @@ local function getClosestTarget()
 end
 
 local lastShootTime = 0
-
 RunService.RenderStepped:Connect(function()
     if aimbotEnabled or silentAimEnabled then
-        fovCircle.Visible = true
-        fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
+        fovCircle.Visible = true; fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
     else
         fovCircle.Visible = false
     end
 
     if aimbotEnabled then
         local target = getClosestTarget()
-        if target then
-            camera.CFrame = CFrame.new(camera.CFrame.Position, target.Position)
-        end
+        if target then camera.CFrame = CFrame.new(camera.CFrame.Position, target.Position) end
     end
 
     if autoShootEnabled and player.Character then
         local tool = player.Character:FindFirstChildWhichIsA("Tool")
         if tool then
             local target = getClosestTarget()
-            if target then
-                if tick() - lastShootTime > 0.1 then
-                    lastShootTime = tick()
-                    pcall(function() tool:Activate() end)
-                    pcall(function()
-                        VirtualUser:CaptureController()
-                        VirtualUser:ClickButton1(Vector2.new(0, 0))
-                    end)
-                end
+            if target and tick() - lastShootTime > 0.1 then
+                lastShootTime = tick()
+                pcall(function() tool:Activate() end)
+                pcall(function() VirtualUser:CaptureController(); VirtualUser:ClickButton1(Vector2.new(0, 0)) end)
             end
         end
     end
@@ -523,91 +640,4 @@ end)
 local espFolder = Instance.new("Folder", Workspace)
 local function createVisual(part, color, category)
     if tracked[part] then return end
-    local hl = Instance.new("Highlight"); hl.FillColor = color; hl.FillTransparency = 0.5; hl.OutlineColor = color; hl.Adornee = part; hl.Parent = espFolder
-    local bb = Instance.new("BillboardGui"); bb.Size = UDim2.new(0, 150, 0, 20); bb.AlwaysOnTop = true; bb.Adornee = part; bb.Parent = espFolder
-    local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(1, 0, 1, 0); lbl.BackgroundTransparency = 1; lbl.TextColor3 = color; lbl.Text = part.Name; lbl.Parent = bb
-    tracked[part] = {hl=hl, bb=bb, cat=category}
-end
-
-local function isItem(obj, category)
-    local n = obj.Name:lower()
-    if n:find("sign") or n:find("wall") or n:find("mesh") or n:find("part") or n:find("building") or n:find("floor") or n:find("tutorial") then return false end
-    local isGun = n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle")
-    if category == "ShopWeapon" then 
-        return isGun and (obj:FindFirstChild("Price") or obj:FindFirstChild("Cost") or obj:FindFirstChildWhichIsA("NumberValue"))
-    elseif category == "DropWeapon" then 
-        local isPickable = obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChildWhichIsA("ProximityPrompt")
-        local hasPrice = obj:FindFirstChild("Price") or obj:FindFirstChild("Cost")
-        return isGun and isPickable and not hasPrice
-    elseif category == "Armor" then 
-        return (n:find("armor") or n:find("vest") or n:find("helmet")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop"))
-    elseif category == "Money" then 
-        return (n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n:find("cash") or n:find("money")) and not n:find("register") and not n:find("tutorial")
-    elseif category == "Food" then 
-        return (n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop")) 
-    end
-    return false
-end
-
-task.spawn(function()
-    while task.wait(0.3) do 
-        if autoFarmBank and player.Character then
-            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local targetObj = nil
-                local shortestDist = 1000
-                for _, obj in ipairs(Workspace:GetDescendants()) do
-                    if obj:IsA("BasePart") or obj:IsA("Model") then
-                        local n = obj.Name:lower()
-                        if (n == "bankcash" or n == "cash" or n == "money" or n == "moneydrop") then
-                            if not (n:find("register") or n:find("atm") or n:find("cashier") or n:find("shelf") or n:find("box") or n:find("safe") or n:find("vault") or n:find("tutorial")) then
-                                local click = obj:FindFirstChildWhichIsA("ClickDetector", true)
-                                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
-                                if click or prompt then
-                                    local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
-                                    if pos then
-                                        local dist = (pos - hrp.Position).Magnitude
-                                        if dist < shortestDist then shortestDist = dist; targetObj = obj end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-                if targetObj then
-                    local targetPos = targetObj:IsA("BasePart") and targetObj.Position or (targetObj.PrimaryPart and targetObj.PrimaryPart.Position)
-                    if targetPos then
-                        hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
-                        task.wait(0.05) 
-                        local prompt = targetObj:FindFirstChildWhichIsA("ProximityPrompt", true)
-                        if prompt then fireproximityprompt(prompt) end
-                        local click = targetObj:FindFirstChildWhichIsA("ClickDetector", true)
-                        if click then fireclickdetector(click) end
-                    end
-                end
-            end
-        end
-    end
-end)
-
-task.spawn(function()
-    while task.wait(2) do
-        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if not hrp then continue end
-        for p, d in pairs(tracked) do
-            if not p.Parent or not espToggles[d.cat] then
-                d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil
-            end
-        end
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
-                local objPos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
-                if objPos and (objPos - hrp.Position).Magnitude < 500 then
-                    for cat, isOn in pairs(espToggles) do
-                        if isOn and isItem(obj, cat) then createVisual(obj, ESP_COLORS[cat], cat) end
-                    end
-                end
-            end
-        end
-    end
-end)
+    local hl = Instance.new("Highlight"); hl.FillColor = color; hl.FillTransparency = 0.5; hl.OutlineColor = color; hl.Adornee = part; hl.Parent =
