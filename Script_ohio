@@ -533,7 +533,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ==========================================
--- ЛОГИКА ESP (СТАРАЯ ВЕРСИЯ)
+-- ЛОГИКА ESP (ФИНАЛЬНЫЙ ФИКС ИГРОКОВ И НИКОВ)
 -- ==========================================
 local espFolder = Instance.new("Folder", Workspace)
 
@@ -565,22 +565,28 @@ end
 local function isItem(obj, category)
     local n = obj.Name:lower()
     
-    -- Жесткий игнор интерфейсов, полов и стен
-    if obj:IsA("GuiBase") or obj:IsA("TextLabel") or n:find("fake") or n:find("glass") or n:find("grass") or n:find("wall") or n:find("floor") or n:find("baseplate") or n:find("building") or n:find("sign") or n:find("mesh") or n:find("material") or n:find("tutorial") then 
+    -- 1. ЖЕСТКИЙ ИГНОР ИГРОКОВ И ИХ ЧАСТЕЙ (включая экипированное оружие)
+    if obj:IsDescendantOf(player.Character) or Players:GetPlayerFromCharacter(obj) then return false end
+    local parent = obj.Parent
+    if parent and (parent:FindFirstChild("Humanoid") or Players:GetPlayerFromCharacter(parent)) then return false end
+
+    -- 2. ИГНОР ИНТЕРФЕЙСОВ И МУСОРА
+    if obj:IsA("GuiBase") or n:find("fake") or n:find("glass") or n:find("grass") or n:find("wall") or n:find("floor") or n:find("baseplate") or n:find("building") or n:find("sign") or n:find("mesh") or n:find("material") or n:find("tutorial") then 
         return false 
     end
 
     if searchFilter ~= "" then return n:find(searchFilter) end
 
-    -- ЛОГИКА "ПОДОБРАТЬ" (Только то, что является Tool, т.е. можно взять в руки)
+    -- 3. ЛОГИКА ОРУЖИЯ (Только длинные названия, чтобы не было ников типо akqp)
+    local isGun = n:find("gun") or n:find("ak47") or n:find("m4a1") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon") or n:find("glock") or n:find("deagle")
+
     if category == "DropWeapon" then
-        local isGun = n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon")
+        -- Подобрать: Только инструменты (Tool) и не надетые на игрока
         return isGun and obj:IsA("Tool")
     end
 
-    -- ЛОГИКА "КУПИТЬ" (Модели на витрине, которые не являются Tool)
     if category == "ShopWeapon" then
-        local isGun = n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon")
+        -- Купить: Модели в магазине (НЕ Tool)
         return isGun and not obj:IsA("Tool")
     end
 
@@ -638,12 +644,11 @@ task.spawn(function()
     end
 end)
 
--- Отрисовка ESP (Возвращена старая логика)
+-- Отрисовка ESP
 task.spawn(function()
     while task.wait(1.5) do
         local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
         if hrp then
-            -- Очистка
             for p, d in pairs(tracked) do
                 if not p.Parent or (not espToggles[d.cat] and searchFilter == "") or (searchFilter ~= "" and not p.Name:lower():find(searchFilter)) then
                     d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil
@@ -651,10 +656,6 @@ task.spawn(function()
             end
             
             for _, obj in ipairs(Workspace:GetDescendants()) do
-                -- ЖЕСТКИЙ ИГНОР ИГРОКОВ И ИХ ЧАСТЕЙ ТЕЛА
-                if obj:IsDescendantOf(player.Character) or Players:GetPlayerFromCharacter(obj) or (obj.Parent and Players:GetPlayerFromCharacter(obj.Parent)) then continue end
-                
-                -- Проверяем только то, что может быть предметом
                 if obj:IsA("Tool") or obj:IsA("Model") or obj:IsA("BasePart") then
                     if not tracked[obj] then
                         for cat, isOn in pairs(espToggles) do
