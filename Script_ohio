@@ -533,7 +533,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ==========================================
--- ЛОГИКА ESP (ФИНАЛЬНЫЙ ФИКС ИГРОКОВ И НИКОВ)
+-- ЛОГИКА ESP (СТАРАЯ РАБОЧАЯ ВЕРСИЯ + ФИКС)
 -- ==========================================
 local espFolder = Instance.new("Folder", Workspace)
 
@@ -565,7 +565,7 @@ end
 local function isItem(obj, category)
     local n = obj.Name:lower()
     
-    -- 1. ЖЕСТКИЙ ИГНОР ИГРОКОВ И ИХ ЧАСТЕЙ (включая экипированное оружие)
+    -- 1. ЖЕСТКИЙ ИГНОР ИГРОКОВ И ИХ ЧАСТЕЙ
     if obj:IsDescendantOf(player.Character) or Players:GetPlayerFromCharacter(obj) then return false end
     local parent = obj.Parent
     if parent and (parent:FindFirstChild("Humanoid") or Players:GetPlayerFromCharacter(parent)) then return false end
@@ -577,27 +577,32 @@ local function isItem(obj, category)
 
     if searchFilter ~= "" then return n:find(searchFilter) end
 
-    -- 3. ЛОГИКА ОРУЖИЯ (Только длинные названия, чтобы не было ников типо akqp)
-    local isGun = n:find("gun") or n:find("ak47") or n:find("m4a1") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon") or n:find("glock") or n:find("deagle")
+    -- 3. ЛОГИКА ОРУЖИЯ
+    local pName = obj.Parent and obj.Parent.Name:lower() or ""
+    local isGun = (n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon") or n:find("glock") or n:find("deagle"))
+    local isLocker = n:find("locker") or n:find("case") or n:find("cabinet") or n:find("safe")
 
-    if category == "DropWeapon" then
-        -- Подобрать: Только инструменты (Tool) и не надетые на игрока
-        return isGun and obj:IsA("Tool")
+    local function hasPrice(o)
+        return o:FindFirstChild("Price") or o:FindFirstChild("Cost") or o:FindFirstChildWhichIsA("NumberValue")
     end
+    local objHasPrice = hasPrice(obj) or (obj.Parent and hasPrice(obj.Parent))
+    local canPickup = obj:IsA("Tool") or obj:FindFirstChildWhichIsA("ClickDetector", true) or obj:FindFirstChildWhichIsA("ProximityPrompt", true)
 
     if category == "ShopWeapon" then
-        -- Купить: Модели в магазине (НЕ Tool)
-        return isGun and not obj:IsA("Tool")
+        -- В продаже: пушка, НЕ шкаф, и есть ценник
+        return isGun and not isLocker and objHasPrice
+    elseif category == "DropWeapon" then
+        -- Подобрать: пушка, НЕ шкаф, можно взять (и нет ценника)
+        return isGun and not isLocker and canPickup and not objHasPrice
     end
 
-    local isPickable = obj:IsA("Tool") or obj:FindFirstChildWhichIsA("ClickDetector", true) or obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+    local isArmor = n:find("armor") or n:find("vest") or n:find("helmet")
+    local isMoney = n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n == "cash" or n == "money" or n:find("moneydrop")
+    local isFood = n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger") or n:find("water")
 
-    if category == "Armor" then return (n:find("armor") or n:find("vest") or n:find("helmet")) and isPickable
-    elseif category == "Money" then return (n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n == "cash" or n == "money") and not n:find("register")
-    elseif category == "Food" then return (n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger")) and isPickable
-    elseif category == "BlueCard" then return isPickable and n:find("blue") and (n:find("card") or n:find("key"))
-    elseif category == "RedCard" then return isPickable and n:find("red") and (n:find("card") or n:find("key"))
-    elseif category == "AllCards" then return isPickable and (n:find("card") or n:find("key"))
+    if category == "Armor" then return isArmor and (canPickup or objHasPrice)
+    elseif category == "Money" then return isMoney and not n:find("register") and not n:find("tutorial")
+    elseif category == "Food" then return isFood and (canPickup or objHasPrice)
     end
     return false
 end
@@ -656,12 +661,10 @@ task.spawn(function()
             end
             
             for _, obj in ipairs(Workspace:GetDescendants()) do
-                if obj:IsA("Tool") or obj:IsA("Model") or obj:IsA("BasePart") then
-                    if not tracked[obj] then
-                        for cat, isOn in pairs(espToggles) do
-                            if isOn and isItem(obj, cat) then 
-                                createVisual(obj, ESP_COLORS[cat], cat) 
-                            end
+                if (obj:IsA("Tool") or obj:IsA("Model") or obj:IsA("BasePart")) and not tracked[obj] and obj ~= espFolder then
+                    for cat, isOn in pairs(espToggles) do
+                        if isOn and isItem(obj, cat) then 
+                            createVisual(obj, ESP_COLORS[cat], cat) 
                         end
                     end
                 end
