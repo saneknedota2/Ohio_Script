@@ -604,7 +604,7 @@ task.spawn(function()
     end
 end)
 
--- УЛЬТРА-БЫСТРЫЙ РАДАР ESP
+-- УЛЬТРА-БЫСТРЫЙ РАДАР ESP (С ЗАЩИТОЙ ОТ ИГРОКОВ И UI)
 task.spawn(function()
     while task.wait(1.5) do
         local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -626,8 +626,13 @@ task.spawn(function()
                     targetObj = part.Parent
                 end
                 
-                -- ЖЕСТКИЙ ИГНОР: Если это игрок, его конечности или UI - пропускаем
-                if targetObj:IsDescendantOf(player.Character) or targetObj:FindFirstAncestorOfClass("Player") or targetObj:FindFirstAncestorOfClass("PlayerGui") then
+                -- 1. ЖЕСТКИЙ ИГНОР ИГРОКОВ (Если есть Humanoid или это персонаж)
+                if targetObj:FindFirstChild("Humanoid") or targetObj:IsA("Humanoid") or targetObj:IsDescendantOf(player.Character) or Players:GetPlayerFromCharacter(targetObj) then
+                    continue
+                end
+                
+                -- 2. ИГНОР ИНТЕРФЕЙСОВ (GUI)
+                if targetObj:IsA("GuiBase") or targetObj:IsA("TextLabel") or targetObj:IsA("BillboardGui") then
                     continue
                 end
 
@@ -637,7 +642,6 @@ task.spawn(function()
                     
                     if not (n:find("fake") or n:find("glass") or n:find("grass") or n:find("wall") or n:find("floor") or n:find("baseplate") or n:find("building") or n:find("sign") or n:find("mesh") or n:find("material") or n:find("tutorial")) then
                         
-                        -- Проверяем, является ли объект оружием (Tool) или имеет ручку
                         local isWeaponObj = targetObj:IsA("Tool") or (targetObj:IsA("Model") and targetObj:FindFirstChild("Handle"))
                         local isPickable = targetObj:IsA("Tool") or targetObj:FindFirstChildWhichIsA("ClickDetector", true) or targetObj:FindFirstChildWhichIsA("ProximityPrompt", true)
                         
@@ -646,18 +650,14 @@ task.spawn(function()
                         else
                             for cat, isOn in pairs(espToggles) do
                                 if isOn then
-                                    -- ЛОГИКА "ПОДОБРАТЬ" (Только физические инструменты)
                                     if cat == "DropWeapon" then
                                         if isWeaponObj and isPickable and (n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon")) then
                                             createVisual(targetObj, ESP_COLORS.DropWeapon, cat)
                                         end
-                                    
-                                    -- ЛОГИКА "КУПИТЬ" (Только то, что НЕ является Tool, но похоже на пушку)
                                     elseif cat == "ShopWeapon" then
                                         if not targetObj:IsA("Tool") and (n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle")) then
                                             createVisual(targetObj, ESP_COLORS.ShopWeapon, cat)
                                         end
-                                    
                                     elseif cat == "BlueCard" then
                                         if isPickable and n:find("card") and n:find("blue") then createVisual(targetObj, ESP_COLORS.BlueCard, cat) end
                                     elseif cat == "RedCard" then
