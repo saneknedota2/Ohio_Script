@@ -533,12 +533,18 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ==========================================
--- ЛОГИКА ESP И АВТО-ФАРМА
+-- ЛОГИКА ESP И АВТО-ФАРМА (РАДАР)
 -- ==========================================
 local espFolder = Instance.new("Folder", Workspace)
 
 local function createVisual(part, color, category)
     if tracked[part] then return end
+    
+    -- ЛИМИТ НА КОЛИЧЕСТВО ESP, ЧТОБЫ НЕ ЛАГАЛО
+    local count = 0
+    for _ in pairs(tracked) do count = count + 1 end
+    if count > 40 then return end
+
     local hl = Instance.new("Highlight"); hl.FillColor = color; hl.FillTransparency = 0.5; hl.OutlineColor = color; hl.Adornee = part; hl.Parent = espFolder
     
     local bb = Instance.new("BillboardGui"); bb.Size = UDim2.new(0, 150, 0, 20); bb.AlwaysOnTop = true
@@ -555,61 +561,6 @@ local function createVisual(part, color, category)
     if category == "BlueCard" or category == "RedCard" or category == "AllCards" then
         showNotification("Найдена карточка!\n" .. part.Name, true)
     end
-end
-
--- ИСПРАВЛЕННЫЙ ФИЛЬТР
-local function isItem(obj, category)
-    local n = obj.Name:lower()
-    
-    if n:find("fake") or n:find("glass") or n:find("grass") or n:find("wall") or n:find("floor") or n:find("baseplate") or n:find("building") or n:find("sign") or n:find("mesh") or n:find("material") or n:find("tutorial") then 
-        return false 
-    end
-
-    if searchFilter ~= "" then return n:find(searchFilter) end
-    if obj.Parent and tracked[obj.Parent] then return false end
-
-    local pName = obj.Parent and obj.Parent.Name:lower() or ""
-    
-    -- ЖЕСТКИЙ ПОИСК КАРТОЧЕК (Только слово card)
-    local isCardType = n:find("card") or pName:find("card")
-    if isCardType then
-        if category == "BlueCard" then return (n:find("blue") or pName:find("blue")) end
-        if category == "RedCard" then return (n:find("red") or pName:find("red")) end
-        if category == "AllCards" then return true end
-    end
-
-    local isGun = n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon")
-    local parentIsGun = pName:find("gun") or pName:find("ak") or pName:find("m4") or pName:find("pistol") or pName:find("shotgun") or pName:find("rifle") or pName:find("weapon")
-
-    -- УМНАЯ ПРОВЕРКА ЦЕНЫ (ищем ценник в объекте, родителе или внутри как NumberValue)
-    local function hasPrice(o)
-        if o:FindFirstChild("Price") or o:FindFirstChild("Cost") then return true end
-        for _, v in ipairs(o:GetChildren()) do
-            if (v:IsA("NumberValue") or v:IsA("StringValue")) and (v.Name:lower():find("price") or v.Name:lower():find("cost")) then return true end
-        end
-        return false
-    end
-    local objHasPrice = hasPrice(obj) or (obj.Parent and hasPrice(obj.Parent))
-    
-    local canPickup = obj:IsA("Tool") or obj:FindFirstChildWhichIsA("ClickDetector", true) or obj:FindFirstChildWhichIsA("ProximityPrompt", true) or obj:FindFirstChild("Handle", true)
-
-    if category == "ShopWeapon" then
-        if n:find("shop") then return false end
-        return (isGun or parentIsGun) and objHasPrice
-    elseif category == "DropWeapon" then
-        -- Ищем только то, что можно взять и где НЕТ цены
-        return (isGun or parentIsGun) and canPickup and not objHasPrice
-    end
-
-    local isArmor = n:find("armor") or n:find("vest") or n:find("helmet")
-    local isMoney = n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n == "cash" or n == "money" or n:find("moneydrop")
-    local isFood = n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger") or n:find("water")
-
-    if category == "Armor" then return isArmor and (canPickup or objHasPrice)
-    elseif category == "Money" then return isMoney and not n:find("register") and not n:find("tutorial")
-    elseif category == "Food" then return isFood and (canPickup or objHasPrice)
-    end
-    return false
 end
 
 -- АВТО-ФАРМ
@@ -654,32 +605,77 @@ task.spawn(function()
     end
 end)
 
--- Отрисовка ESP (ОПТИМИЗИРОВАНО: меньше радиус, дольше ожидание)
+-- УЛЬТРА-БЫСТРЫЙ РАДАР ESP (GetPartBoundsInRadius)
 task.spawn(function()
-    while task.wait(3) do -- Сканируем раз в 3 секунды (сильно снижает лаги)
+    while task.wait(1.5) do
         local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
         if hrp then
+            -- Очистка старых
             for p, d in pairs(tracked) do
                 if not p.Parent or (not espToggles[d.cat] and searchFilter == "") or (searchFilter ~= "" and not p.Name:lower():find(searchFilter)) then
                     d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil
                 end
             end
             
-            for _, obj in ipairs(Workspace:GetDescendants()) do
-                if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
-                    local objPos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
-                    if not objPos and obj:IsA("Model") then
-                        local p = obj:FindFirstChildWhichIsA("BasePart")
-                        objPos = p and p.Position
-                    end
-
-                    -- Радиус снижен до 300 метров, чтобы не лагало
-                    if objPos and (objPos - hrp.Position).Magnitude < 300 then
+            -- Магия оптимизации: сканируем только близлежащие объекты (радиус 250 метров)
+            local partsInRadius = Workspace:GetPartBoundsInRadius(hrp.Position, 250)
+            local checkedModels = {}
+            
+            for _, part in ipairs(partsInRadius) do
+                local targetObj = part
+                -- Если деталь лежит внутри Модели или Инструмента, проверяем их
+                if part.Parent and (part.Parent:IsA("Tool") or part.Parent:IsA("Model")) then
+                    targetObj = part.Parent
+                end
+                
+                if not tracked[targetObj] and not checkedModels[targetObj] then
+                    checkedModels[targetObj] = true
+                    local n = targetObj.Name:lower()
+                    
+                    -- Блокируем мусор
+                    if not (n:find("fake") or n:find("glass") or n:find("grass") or n:find("wall") or n:find("floor") or n:find("baseplate") or n:find("building") or n:find("sign") or n:find("mesh") or n:find("material") or n:find("tutorial")) then
+                        
+                        -- Проверяем, можно ли предмет взять (Drop)
+                        local isPickable = targetObj:IsA("Tool") or targetObj:FindFirstChildWhichIsA("ClickDetector", true) or targetObj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                        
                         if searchFilter ~= "" then
-                            if obj.Name:lower():find(searchFilter) then createVisual(obj, Color3.fromRGB(255, 255, 255), "Search") end
+                            if n:find(searchFilter) then createVisual(targetObj, Color3.fromRGB(255, 255, 255), "Search") end
                         else
                             for cat, isOn in pairs(espToggles) do
-                                if isOn and isItem(obj, cat) then createVisual(obj, ESP_COLORS[cat], cat) end
+                                if isOn then
+                                    -- ЛОГИКА "ПОДОБРАТЬ" (Только то, что можно взять)
+                                    if cat == "DropWeapon" then
+                                        if isPickable and (n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon")) then
+                                            createVisual(targetObj, ESP_COLORS.DropWeapon, cat)
+                                        end
+                                    
+                                    -- ЛОГИКА "КУПИТЬ" (Только то, что НЕЛЬЗЯ взять, но это пушка)
+                                    elseif cat == "ShopWeapon" then
+                                        if not isPickable and (n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle")) then
+                                            createVisual(targetObj, ESP_COLORS.ShopWeapon, cat)
+                                        end
+                                    
+                                    -- КАРТОЧКИ (Только то, что можно взять)
+                                    elseif cat == "BlueCard" then
+                                        if isPickable and n:find("card") and n:find("blue") then createVisual(targetObj, ESP_COLORS.BlueCard, cat) end
+                                    elseif cat == "RedCard" then
+                                        if isPickable and n:find("card") and n:find("red") then createVisual(targetObj, ESP_COLORS.RedCard, cat) end
+                                    elseif cat == "AllCards" then
+                                        if isPickable and n:find("card") then createVisual(targetObj, ESP_COLORS.AllCards, cat) end
+                                    
+                                    -- ЕДА И БРОНЯ
+                                    elseif cat == "Armor" then
+                                        if isPickable and (n:find("armor") or n:find("vest") or n:find("helmet")) then createVisual(targetObj, ESP_COLORS.Armor, cat) end
+                                    elseif cat == "Food" then
+                                        if isPickable and (n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger")) then createVisual(targetObj, ESP_COLORS.Food, cat) end
+                                    
+                                    -- ДЕНЬГИ
+                                    elseif cat == "Money" then
+                                        if (n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n:find("cash") or n:find("money")) and not n:find("register") then
+                                            createVisual(targetObj, ESP_COLORS.Money, cat)
+                                        end
+                                    end
+                                end
                             end
                         end
                     end
