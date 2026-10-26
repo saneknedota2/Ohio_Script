@@ -23,14 +23,11 @@ local ESP_COLORS = {
     ShopWeapon = Color3.fromRGB(255, 100, 100), DropWeapon = Color3.fromRGB(200, 0, 0),
     Armor = Color3.fromRGB(50, 150, 255), Money = Color3.fromRGB(255, 200, 0), Food = Color3.fromRGB(0, 255, 150),
     RedCard = Color3.fromRGB(255, 0, 0), BlueCard = Color3.fromRGB(0, 100, 255),
-    Search = Color3.fromRGB(255, 255, 255) -- Белый для поиска
+    Search = Color3.fromRGB(255, 255, 255)
 }
 
--- Переменные для поиска
-local searchText = ""
-local searchResults = {}
-local searchObjects = {}
 local searchESPActive = false
+local searchObjects = {}
 
 -- ==========================================
 -- ПЛАВАЮЩАЯ КНОПКА AIMBOT
@@ -69,11 +66,9 @@ local aimbotEnabled = false
 floatBtn.MouseButton1Click:Connect(function()
     aimbotEnabled = not aimbotEnabled
     if aimbotEnabled then
-        floatBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
-        floatBtn.Text = "AIM\nON"
+        floatBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50); floatBtn.Text = "AIM\nON"
     else
-        floatBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-        floatBtn.Text = "AIM\nOFF"
+        floatBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50); floatBtn.Text = "AIM\nOFF"
     end
 end)
 
@@ -135,7 +130,7 @@ local isOpen = false
 arrowBtn.MouseButton1Click:Connect(function()
     isOpen = not isOpen
     if isOpen then
-        mainFrame.Size = UDim2.new(0, 420, 0, 520) -- Увеличили высоту для поиска
+        mainFrame.Size = UDim2.new(0, 420, 0, 520)
         arrowBtn.Text = "▲"
         contentFrame.Visible = true
     else
@@ -177,7 +172,7 @@ tabLayout.Padding = UDim.new(0, 5)
 tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local pageContainer = Instance.new("Frame")
-pageContainer.Size = UDim2.new(1, -20, 1, -100) -- Оставили место снизу для поиска
+pageContainer.Size = UDim2.new(1, -20, 1, -100)
 pageContainer.Position = UDim2.new(0, 10, 0, 50)
 pageContainer.BackgroundTransparency = 1
 pageContainer.Parent = contentFrame
@@ -415,20 +410,20 @@ for i, color in ipairs(colors) do
 end
 
 -- ==========================================
--- СТРОКА ПОИСКА И ПОДСКАЗКИ (В САМОМ НИЗУ)
+-- СТРОКА ПОИСКА И ПОДСКАЗКИ
 -- ==========================================
 local searchBarFrame = Instance.new("Frame")
 searchBarFrame.Size = UDim2.new(1, -20, 0, 35)
-searchBarFrame.Position = UDim2.new(0, 10, 1, -45) -- В самом низу меню
+searchBarFrame.Position = UDim2.new(0, 10, 1, -45)
 searchBarFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 searchBarFrame.Parent = contentFrame
 Instance.new("UICorner", searchBarFrame).CornerRadius = UDim.new(0, 6)
 
 local searchBox = Instance.new("TextBox")
-searchBox.Size = UDim2.new(1, -20, 1, 0)
+searchBox.Size = UDim2.new(1, -40, 1, 0)
 searchBox.Position = UDim2.new(0, 10, 0, 0)
 searchBox.BackgroundTransparency = 1
-searchBox.PlaceholderText = "Поиск предмета (например: ak47, красная карта)"
+searchBox.PlaceholderText = "Поиск предмета (например: ak, card)"
 searchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
 searchBox.Text = ""
 searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -437,10 +432,19 @@ searchBox.TextSize = 13
 searchBox.TextXAlignment = Enum.TextXAlignment.Left
 searchBox.Parent = searchBarFrame
 
--- Выпадающий список подсказок
+local clearSearchBtn = Instance.new("TextButton")
+clearSearchBtn.Size = UDim2.new(0, 25, 0, 25)
+clearSearchBtn.Position = UDim2.new(1, -30, 0, 5)
+clearSearchBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+clearSearchBtn.Text = "X"
+clearSearchBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+clearSearchBtn.Font = Enum.Font.GothamBold
+clearSearchBtn.Parent = searchBarFrame
+Instance.new("UICorner", clearSearchBtn).CornerRadius = UDim.new(0, 4)
+
 local suggestionList = Instance.new("ScrollingFrame")
 suggestionList.Size = UDim2.new(1, -20, 0, 120)
-suggestionList.Position = UDim2.new(0, 10, 1, -160) -- Над строкой поиска
+suggestionList.Position = UDim2.new(0, 10, 1, -170)
 suggestionList.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 suggestionList.BorderSizePixel = 0
 suggestionList.ScrollBarThickness = 2
@@ -450,9 +454,7 @@ Instance.new("UICorner", suggestionList).CornerRadius = UDim.new(0, 6)
 local sugLayout = Instance.new("UIListLayout", suggestionList)
 sugLayout.Padding = UDim.new(0, 2)
 
--- Функция поиска и обновления подсказок
 local function updateSuggestions()
-    -- Очищаем старые подсказки
     for _, child in ipairs(suggestionList:GetChildren()) do
         if child:IsA("TextButton") then child:Destroy() end
     end
@@ -464,24 +466,19 @@ local function updateSuggestions()
     end
     
     local foundNames = {}
-    -- Сканируем игру на совпадения
     for _, obj in ipairs(Workspace:GetDescendants()) do
         if (obj:IsA("BasePart") or obj:IsA("Model")) and obj ~= screenGui then
             local name = obj.Name
             if name:lower():find(query) and not name:lower():find("wall") and not name:lower():find("mesh") then
-                -- Чтобы не было 1000 одинаковых подсказок, запоминаем уникальные имена
-                if not foundNames[name] then
-                    foundNames[name] = obj
-                end
+                if not foundNames[name] then foundNames[name] = obj end
             end
         end
     end
     
-    -- Создаем кнопки для уникальных имен
     local count = 0
     for name, obj in pairs(foundNames) do
         count = count + 1
-        if count > 20 then break end -- Показываем максимум 20 подсказок
+        if count > 10 then break end
         
         local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(1, -10, 0, 25)
@@ -495,57 +492,25 @@ local function updateSuggestions()
         Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
         
         btn.MouseButton1Click:Connect(function()
-            -- При клике на подсказку, включаем ESP для этого конкретного объекта
             searchESPActive = true
-            searchObjects = {obj} -- Массив только с этим объектом
+            searchObjects = {obj}
             suggestionList.Visible = false
-            searchBox.Text = "" -- Очищаем поле
+            searchBox.Text = ""
         end)
     end
-    
     suggestionList.Visible = (count > 0)
 end
 
--- Отслеживаем ввод текста
-searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-    updateSuggestions()
-end)
-
+searchBox:GetPropertyChangedSignal("Text"):Connect(function() updateSuggestions() end)
 searchBox.FocusLost:Connect(function(enterPressed)
-    if enterPressed then
-        suggestionList.Visible = false
-    else
-        -- Если кликнули мимо поля, но ввели текст, запускаем поиск по всем совпадениям
-        local query = searchBox.Text:lower()
-        if query ~= "" then
-            searchESPActive = true
-            searchObjects = {}
-            for _, obj in ipairs(Workspace:GetDescendants()) do
-                if (obj:IsA("BasePart") or obj:IsA("Model")) and obj.Name:lower():find(query) then
-                    table.insert(searchObjects, obj)
-                end
-            end
-        end
-    end
+    if enterPressed then suggestionList.Visible = false end
 end)
-
--- Кнопка сброса поиска
-local clearSearchBtn = Instance.new("TextButton")
-clearSearchBtn.Size = UDim2.new(0, 25, 0, 25)
-clearSearchBtn.Position = UDim2.new(1, -30, 0, 5)
-clearSearchBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-clearSearchBtn.Text = "X"
-clearSearchBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-clearSearchBtn.Font = Enum.Font.GothamBold
-clearSearchBtn.Parent = searchBarFrame
-Instance.new("UICorner", clearSearchBtn).CornerRadius = UDim.new(0, 4)
 
 clearSearchBtn.MouseButton1Click:Connect(function()
     searchBox.Text = ""
     searchESPActive = false
     searchObjects = {}
     suggestionList.Visible = false
-    -- Удаляем визуалы поиска
     for p, d in pairs(tracked) do
         if d.cat == "Search" then d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
     end
@@ -640,4 +605,113 @@ end)
 local espFolder = Instance.new("Folder", Workspace)
 local function createVisual(part, color, category)
     if tracked[part] then return end
-    local hl = Instance.new("Highlight"); hl.FillColor = color; hl.FillTransparency = 0.5; hl.OutlineColor = color; hl.Adornee = part; hl.Parent =
+    local hl = Instance.new("Highlight"); hl.FillColor = color; hl.FillTransparency = 0.5; hl.OutlineColor = color; hl.Adornee = part; hl.Parent = espFolder
+    local bb = Instance.new("BillboardGui"); bb.Size = UDim2.new(0, 150, 0, 20); bb.AlwaysOnTop = true; bb.Adornee = part; bb.Parent = espFolder
+    local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(1, 0, 1, 0); lbl.BackgroundTransparency = 1; lbl.TextColor3 = color; lbl.Text = part.Name; lbl.Parent = bb
+    tracked[part] = {hl=hl, bb=bb, cat=category}
+end
+
+local function isItem(obj, category)
+    local n = obj.Name:lower()
+    if n:find("sign") or n:find("wall") or n:find("mesh") or n:find("part") or n:find("building") or n:find("floor") or n:find("tutorial") then return false end
+    
+    if category == "RedCard" then
+        return (n:find("red") and (n:find("card") or n:find("key") or n:find("access"))) or n == "redcard"
+    elseif category == "BlueCard" then
+        return (n:find("blue") and (n:find("card") or n:find("key") or n:find("access"))) or n == "bluecard"
+    end
+
+    local isGun = n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle")
+    if category == "ShopWeapon" then 
+        return isGun and (obj:FindFirstChild("Price") or obj:FindFirstChild("Cost") or obj:FindFirstChildWhichIsA("NumberValue"))
+    elseif category == "DropWeapon" then 
+        local isPickable = obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChildWhichIsA("ProximityPrompt")
+        local hasPrice = obj:FindFirstChild("Price") or obj:FindFirstChild("Cost")
+        return isGun and isPickable and not hasPrice
+    elseif category == "Armor" then 
+        return (n:find("armor") or n:find("vest") or n:find("helmet")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop"))
+    elseif category == "Money" then 
+        return (n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n:find("cash") or n:find("money")) and not n:find("register") and not n:find("tutorial")
+    elseif category == "Food" then 
+        return (n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop")) 
+    end
+    return false
+end
+
+-- АВТО-ФАРМ
+task.spawn(function()
+    while task.wait(0.3) do 
+        if autoFarmBank and player.Character then
+            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local targetObj = nil
+                local shortestDist = 1000
+                for _, obj in ipairs(Workspace:GetDescendants()) do
+                    if obj:IsA("BasePart") or obj:IsA("Model") then
+                        local n = obj.Name:lower()
+                        if (n == "bankcash" or n == "cash" or n == "money" or n == "moneydrop") then
+                            if not (n:find("register") or n:find("atm") or n:find("cashier") or n:find("shelf") or n:find("box") or n:find("safe") or n:find("vault") or n:find("tutorial")) then
+                                local click = obj:FindFirstChildWhichIsA("ClickDetector", true)
+                                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                if click or prompt then
+                                    local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
+                                    if pos then
+                                        local dist = (pos - hrp.Position).Magnitude
+                                        if dist < shortestDist then shortestDist = dist; targetObj = obj end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+                if targetObj then
+                    local targetPos = targetObj:IsA("BasePart") and targetObj.Position or (targetObj.PrimaryPart and targetObj.PrimaryPart.Position)
+                    if targetPos then
+                        hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
+                        task.wait(0.05) 
+                        local prompt = targetObj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                        if prompt then fireproximityprompt(prompt) end
+                        local click = targetObj:FindFirstChildWhichIsA("ClickDetector", true)
+                        if click then fireclickdetector(click) end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ОТРИСОВКА ESP И ПОИСКА
+task.spawn(function()
+    while task.wait(1) do
+        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
+        
+        -- Очистка
+        for p, d in pairs(tracked) do
+            if not p.Parent or (d.cat ~= "Search" and not espToggles[d.cat]) or (d.cat == "Search" and not searchESPActive) then
+                d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil
+            end
+        end
+
+        -- Отрисовка кнопок ESP
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
+                local objPos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
+                if objPos and (objPos - hrp.Position).Magnitude < 500 then
+                    for cat, isOn in pairs(espToggles) do
+                        if isOn and isItem(obj, cat) then createVisual(obj, ESP_COLORS[cat], cat) end
+                    end
+                end
+            end
+        end
+
+        -- Отрисовка результатов поиска
+        if searchESPActive then
+            for _, obj in ipairs(searchObjects) do
+                if obj and obj.Parent and not tracked[obj] then
+                    createVisual(obj, ESP_COLORS.Search, "Search")
+                end
+            end
+        end
+    end
+end)
