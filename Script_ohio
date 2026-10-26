@@ -5,6 +5,7 @@ local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
+local TweenService = game:GetService("TweenService")
 
 local autoFarmBank = false
 local aimbotEnabled = false
@@ -15,12 +16,56 @@ local desiredJump = 50
 local tracked = {}
 local searchFilter = ""
 
-local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, BlueCard = false, RedCard = false }
+local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, BlueCard = false, RedCard = false, AllCards = false }
 local ESP_COLORS = {
     ShopWeapon = Color3.fromRGB(255, 100, 100), DropWeapon = Color3.fromRGB(200, 0, 0),
     Armor = Color3.fromRGB(50, 150, 255), Money = Color3.fromRGB(255, 200, 0), Food = Color3.fromRGB(0, 255, 150),
-    BlueCard = Color3.fromRGB(0, 255, 255), RedCard = Color3.fromRGB(255, 0, 0)
+    BlueCard = Color3.fromRGB(0, 255, 255), RedCard = Color3.fromRGB(255, 0, 0), AllCards = Color3.fromRGB(255, 0, 255)
 }
+
+-- ==========================================
+-- СИСТЕМА УВЕДОМЛЕНИЙ (Вместо F9)
+-- ==========================================
+local notifGui = Instance.new("ScreenGui")
+notifGui.Name = "RocketNotifications"
+notifGui.ResetOnSpawn = false
+notifGui.Parent = playerGui
+
+local function showNotification(text, isCard)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 300, 0, 45)
+    frame.Position = UDim2.new(0.5, -150, 0.85, 50) -- Появляется внизу, чуть ниже экрана
+    frame.BackgroundColor3 = isCard and Color3.fromRGB(50, 20, 60) or Color3.fromRGB(20, 30, 40)
+    frame.BorderSizePixel = 0
+    frame.Parent = notifGui
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+    
+    local stroke = Instance.new("UIStroke", frame)
+    stroke.Color = isCard and Color3.fromRGB(255, 0, 255) or Color3.fromRGB(0, 150, 255)
+    stroke.Thickness = 2
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -10, 1, 0)
+    lbl.Position = UDim2.new(0, 5, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 14
+    lbl.TextWrapped = true
+    lbl.Parent = frame
+
+    -- Анимация выезда
+    local tweenIn = TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {Position = UDim2.new(0.5, -150, 0.85, -20)})
+    tweenIn:Play()
+
+    -- Анимация исчезновения через 3 секунды
+    task.delay(3, function()
+        local tweenOut = TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {Position = UDim2.new(0.5, -150, 0.85, 50)})
+        tweenOut:Play()
+        tweenOut.Completed:Connect(function() frame:Destroy() end)
+    end)
+end
 
 -- ==========================================
 -- ГЛАВНЫЙ GUI
@@ -80,7 +125,7 @@ local isOpen = false
 arrowBtn.MouseButton1Click:Connect(function()
     isOpen = not isOpen
     if isOpen then
-        mainFrame.Size = UDim2.new(0, 400, 0, 450)
+        mainFrame.Size = UDim2.new(0, 400, 0, 480)
         arrowBtn.Text = "▲"
         contentFrame.Visible = true
     else
@@ -256,7 +301,7 @@ Instance.new("UICorner", suggestionFrame).CornerRadius = UDim.new(0, 6)
 local sugLayout = Instance.new("UIListLayout", suggestionFrame)
 sugLayout.Padding = UDim.new(0, 2)
 
-local knownItems = {"ak47", "m4", "pistol", "shotgun", "gun", "cash", "money", "atm", "safe", "vault", "vest", "armor", "helmet", "medkit", "apple", "burger", "bluecard", "redcard", "keycard"}
+local knownItems = {"ak47", "m4", "pistol", "shotgun", "gun", "cash", "money", "atm", "safe", "vault", "vest", "armor", "helmet", "medkit", "apple", "burger", "bluecard", "redcard", "keycard", "card"}
 
 searchBox:GetPropertyChangedSignal("Text"):Connect(function()
     local txt = searchBox.Text:lower()
@@ -304,8 +349,10 @@ createToggleButton(pageESP, "Оружие (Подобрать)", false, ESP_COLO
 createToggleButton(pageESP, "Броня", false, ESP_COLORS.Armor, function(state) espToggles.Armor = state end)
 createToggleButton(pageESP, "Деньги / Сейфы", false, ESP_COLORS.Money, function(state) espToggles.Money = state end)
 createToggleButton(pageESP, "Еда", false, ESP_COLORS.Food, function(state) espToggles.Food = state end)
+
 createToggleButton(pageESP, "Синяя карточка", false, ESP_COLORS.BlueCard, function(state) espToggles.BlueCard = state end)
 createToggleButton(pageESP, "Красная карточка", false, ESP_COLORS.RedCard, function(state) espToggles.RedCard = state end)
+createToggleButton(pageESP, "Все карточки (Любые)", false, ESP_COLORS.AllCards, function(state) espToggles.AllCards = state end)
 
 -- ==========================================
 -- 3. HUMAN
@@ -497,12 +544,8 @@ local function createVisual(part, color, category)
     local hl = Instance.new("Highlight"); hl.FillColor = color; hl.FillTransparency = 0.5; hl.OutlineColor = color; hl.Adornee = part; hl.Parent = espFolder
     
     local bb = Instance.new("BillboardGui"); bb.Size = UDim2.new(0, 150, 0, 20); bb.AlwaysOnTop = true
-    
-    -- Поддержка моделей
     local targetPart = part
-    if part:IsA("Model") then
-        targetPart = part.PrimaryPart or part:FindFirstChildWhichIsA("BasePart")
-    end
+    if part:IsA("Model") then targetPart = part.PrimaryPart or part:FindFirstChildWhichIsA("BasePart") end
     
     if targetPart then
         bb.Adornee = targetPart
@@ -510,50 +553,63 @@ local function createVisual(part, color, category)
         local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(1, 0, 1, 0); lbl.BackgroundTransparency = 1; lbl.TextColor3 = color; lbl.Text = part.Name; lbl.Parent = bb
     end
     tracked[part] = {hl=hl, bb=bb, cat=category}
+    
+    -- ВЫЗОВ УВЕДОМЛЕНИЯ ДЛЯ КАРТОЧЕК
+    if category == "BlueCard" or category == "RedCard" or category == "AllCards" then
+        showNotification("Найдена карточка!\n" .. part.Name, true)
+    end
 end
 
--- ВОЗВРАЩАЕМ ПРОВЕРКУ НА СТЕНЫ И УМНЫЙ ПОИСК ЦЕНЫ
 local function isItem(obj, category)
     local n = obj.Name:lower()
     
-    -- Поиск по строке (если введено в поиске)
-    if searchFilter ~= "" then
-        return n:find(searchFilter)
-    end
-
-    -- Возвращаем проверку на стены/пол/мусор
-    if n:find("wall") or n:find("floor") or n:find("baseplate") or n:find("building") or n:find("sign") or n:find("mesh") or n:find("material") then 
+    if n:find("fake") or n:find("glass") or n:find("grass") or n:find("wall") or n:find("floor") or n:find("baseplate") or n:find("building") or n:find("sign") or n:find("mesh") or n:find("material") or n:find("tutorial") then 
         return false 
     end
 
-    local isGun = n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon")
-    local isArmor = n:find("armor") or n:find("vest") or n:find("helmet")
-    local isMoney = n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n:find("cash") or n:find("money")
-    local isFood = n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger") or n:find("water")
+    if searchFilter ~= "" then return n:find(searchFilter) end
+    if obj.Parent and tracked[obj.Parent] then return false end
 
-    -- УМНАЯ ПРОВЕРКА ЦЕНЫ (смотрим сам предмет и его родителя)
-    local function hasPrice(o)
-        return o:FindFirstChild("Price") or o:FindFirstChild("Cost") or o:FindFirstChildWhichIsA("NumberValue")
+    local pName = obj.Parent and obj.Parent.Name:lower() or ""
+    local isCardType = n:find("card") or n:find("key") or n:find("pass") or n:find("id") or pName:find("card") or pName:find("key") or pName:find("pass") or pName:find("id")
+
+    if isCardType then
+        if category == "BlueCard" or category == "AllCards" then
+            if (n:find("blue") or n:find("cyan") or n:find("lightblue") or pName:find("blue") or pName:find("cyan")) then
+                return true
+            end
+        end
+        if category == "RedCard" or category == "AllCards" then
+            if (n:find("red") or n:find("crimson") or n:find("darkred") or pName:find("red") or pName:find("crimson")) then
+                return true
+            end
+        end
+        if category == "AllCards" and not (n:find("blue") or n:find("red") or pName:find("blue") or pName:find("red")) then
+            return true
+        end
     end
-    local objHasPrice = hasPrice(obj) or (obj.Parent and hasPrice(obj.Parent))
 
-    -- Проверка на возможность подобрать
+    local isGun = n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon")
+    local parentIsGun = pName:find("gun") or pName:find("ak") or pName:find("m4") or pName:find("pistol") or pName:find("shotgun") or pName:find("rifle") or pName:find("weapon")
+
+    local function hasPrice(o) return o:FindFirstChild("Price") or o:FindFirstChild("Cost") or o:FindFirstChildWhichIsA("NumberValue") end
+    local objHasPrice = hasPrice(obj) or (obj.Parent and hasPrice(obj.Parent))
     local canPickup = obj:IsA("Tool") or obj:FindFirstChildWhichIsA("ClickDetector", true) or obj:FindFirstChildWhichIsA("ProximityPrompt", true) or obj:FindFirstChild("Handle", true)
 
-    if category == "ShopWeapon" then 
-        return isGun and objHasPrice
-    elseif category == "DropWeapon" then 
-        return isGun and canPickup and not objHasPrice
-    elseif category == "Armor" then 
-        return isArmor and (canPickup or objHasPrice)
-    elseif category == "Money" then 
-        return isMoney and not n:find("register") and not n:find("tutorial")
-    elseif category == "Food" then 
-        return isFood and (canPickup or objHasPrice) 
-    elseif category == "BlueCard" then
-        return n:find("blue") and (n:find("card") or n:find("key"))
-    elseif category == "RedCard" then
-        return n:find("red") and (n:find("card") or n:find("key"))
+    if category == "ShopWeapon" then
+        if n:find("shop") then return false end
+        return (isGun or parentIsGun) and objHasPrice
+    elseif category == "DropWeapon" then
+        return (isGun or parentIsGun) and canPickup and not objHasPrice
+    end
+
+    local isArmor = n:find("armor") or n:find("vest") or n:find("helmet")
+    local isMoney = n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n == "cash" or n == "money" or n:find("moneydrop")
+    local isFood = n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger") or n:find("water")
+
+    if category == "Armor" then return isArmor and (canPickup or objHasPrice)
+    elseif category == "Money" then return isMoney and not n:find("register") and not n:find("tutorial")
+    elseif category == "Food" then return isFood and (canPickup or objHasPrice)
     end
     return false
 end
@@ -614,7 +670,6 @@ task.spawn(function()
             for _, obj in ipairs(Workspace:GetDescendants()) do
                 if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
                     local objPos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
-                    -- Если у модели нет PrimaryPart, ищем любую деталь
                     if not objPos and obj:IsA("Model") then
                         local p = obj:FindFirstChildWhichIsA("BasePart")
                         objPos = p and p.Position
