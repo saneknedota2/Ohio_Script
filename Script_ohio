@@ -24,7 +24,7 @@ local ESP_COLORS = {
 }
 
 -- ==========================================
--- СИСТЕМА УВЕДОМЛЕНИЙ
+-- УВЕДОМЛЕНИЯ
 -- ==========================================
 local notifGui = Instance.new("ScreenGui")
 notifGui.Name = "RocketNotifications"
@@ -533,7 +533,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ==========================================
--- ЛОГИКА ESP И АВТО-ФАРМА (РАДАР)
+-- ЛОГИКА ESP (СТАРАЯ ВЕРСИЯ)
 -- ==========================================
 local espFolder = Instance.new("Folder", Workspace)
 
@@ -560,6 +560,40 @@ local function createVisual(part, color, category)
     if category == "BlueCard" or category == "RedCard" or category == "AllCards" then
         showNotification("Найдена карточка!\n" .. part.Name, true)
     end
+end
+
+local function isItem(obj, category)
+    local n = obj.Name:lower()
+    
+    -- Жесткий игнор интерфейсов, полов и стен
+    if obj:IsA("GuiBase") or obj:IsA("TextLabel") or n:find("fake") or n:find("glass") or n:find("grass") or n:find("wall") or n:find("floor") or n:find("baseplate") or n:find("building") or n:find("sign") or n:find("mesh") or n:find("material") or n:find("tutorial") then 
+        return false 
+    end
+
+    if searchFilter ~= "" then return n:find(searchFilter) end
+
+    -- ЛОГИКА "ПОДОБРАТЬ" (Только то, что является Tool, т.е. можно взять в руки)
+    if category == "DropWeapon" then
+        local isGun = n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon")
+        return isGun and obj:IsA("Tool")
+    end
+
+    -- ЛОГИКА "КУПИТЬ" (Модели на витрине, которые не являются Tool)
+    if category == "ShopWeapon" then
+        local isGun = n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon")
+        return isGun and not obj:IsA("Tool")
+    end
+
+    local isPickable = obj:IsA("Tool") or obj:FindFirstChildWhichIsA("ClickDetector", true) or obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+
+    if category == "Armor" then return (n:find("armor") or n:find("vest") or n:find("helmet")) and isPickable
+    elseif category == "Money" then return (n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n == "cash" or n == "money") and not n:find("register")
+    elseif category == "Food" then return (n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger")) and isPickable
+    elseif category == "BlueCard" then return isPickable and n:find("blue") and (n:find("card") or n:find("key"))
+    elseif category == "RedCard" then return isPickable and n:find("red") and (n:find("card") or n:find("key"))
+    elseif category == "AllCards" then return isPickable and (n:find("card") or n:find("key"))
+    end
+    return false
 end
 
 -- АВТО-ФАРМ
@@ -604,76 +638,28 @@ task.spawn(function()
     end
 end)
 
--- УЛЬТРА-БЫСТРЫЙ РАДАР ESP (С ЗАЩИТОЙ ОТ ИГРОКОВ И UI)
+-- Отрисовка ESP (Возвращена старая логика)
 task.spawn(function()
     while task.wait(1.5) do
         local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
         if hrp then
+            -- Очистка
             for p, d in pairs(tracked) do
                 if not p.Parent or (not espToggles[d.cat] and searchFilter == "") or (searchFilter ~= "" and not p.Name:lower():find(searchFilter)) then
                     d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil
                 end
             end
             
-            local partsInRadius = Workspace:GetPartBoundsInRadius(hrp.Position, 250)
-            local checkedObjects = {}
-            
-            for _, part in ipairs(partsInRadius) do
-                local targetObj = part
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                -- ЖЕСТКИЙ ИГНОР ИГРОКОВ И ИХ ЧАСТЕЙ ТЕЛА
+                if obj:IsDescendantOf(player.Character) or Players:GetPlayerFromCharacter(obj) or (obj.Parent and Players:GetPlayerFromCharacter(obj.Parent)) then continue end
                 
-                -- Если деталь лежит внутри Модели или Инструмента, проверяем их
-                if part.Parent and (part.Parent:IsA("Tool") or part.Parent:IsA("Model")) then
-                    targetObj = part.Parent
-                end
-                
-                -- 1. ЖЕСТКИЙ ИГНОР ИГРОКОВ (Если есть Humanoid или это персонаж)
-                if targetObj:FindFirstChild("Humanoid") or targetObj:IsA("Humanoid") or targetObj:IsDescendantOf(player.Character) or Players:GetPlayerFromCharacter(targetObj) then
-                    continue
-                end
-                
-                -- 2. ИГНОР ИНТЕРФЕЙСОВ (GUI)
-                if targetObj:IsA("GuiBase") or targetObj:IsA("TextLabel") or targetObj:IsA("BillboardGui") then
-                    continue
-                end
-
-                if not tracked[targetObj] and not checkedObjects[targetObj] then
-                    checkedObjects[targetObj] = true
-                    local n = targetObj.Name:lower()
-                    
-                    if not (n:find("fake") or n:find("glass") or n:find("grass") or n:find("wall") or n:find("floor") or n:find("baseplate") or n:find("building") or n:find("sign") or n:find("mesh") or n:find("material") or n:find("tutorial")) then
-                        
-                        local isWeaponObj = targetObj:IsA("Tool") or (targetObj:IsA("Model") and targetObj:FindFirstChild("Handle"))
-                        local isPickable = targetObj:IsA("Tool") or targetObj:FindFirstChildWhichIsA("ClickDetector", true) or targetObj:FindFirstChildWhichIsA("ProximityPrompt", true)
-                        
-                        if searchFilter ~= "" then
-                            if n:find(searchFilter) then createVisual(targetObj, Color3.fromRGB(255, 255, 255), "Search") end
-                        else
-                            for cat, isOn in pairs(espToggles) do
-                                if isOn then
-                                    if cat == "DropWeapon" then
-                                        if isWeaponObj and isPickable and (n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon")) then
-                                            createVisual(targetObj, ESP_COLORS.DropWeapon, cat)
-                                        end
-                                    elseif cat == "ShopWeapon" then
-                                        if not targetObj:IsA("Tool") and (n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle")) then
-                                            createVisual(targetObj, ESP_COLORS.ShopWeapon, cat)
-                                        end
-                                    elseif cat == "BlueCard" then
-                                        if isPickable and n:find("card") and n:find("blue") then createVisual(targetObj, ESP_COLORS.BlueCard, cat) end
-                                    elseif cat == "RedCard" then
-                                        if isPickable and n:find("card") and n:find("red") then createVisual(targetObj, ESP_COLORS.RedCard, cat) end
-                                    elseif cat == "AllCards" then
-                                        if isPickable and n:find("card") then createVisual(targetObj, ESP_COLORS.AllCards, cat) end
-                                    elseif cat == "Armor" then
-                                        if isPickable and (n:find("armor") or n:find("vest") or n:find("helmet")) then createVisual(targetObj, ESP_COLORS.Armor, cat) end
-                                    elseif cat == "Food" then
-                                        if isPickable and (n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger")) then createVisual(targetObj, ESP_COLORS.Food, cat) end
-                                    elseif cat == "Money" then
-                                        if (n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n:find("cash") or n:find("money")) and not n:find("register") then
-                                            createVisual(targetObj, ESP_COLORS.Money, cat)
-                                        end
-                                    end
-                                end
+                -- Проверяем только то, что может быть предметом
+                if obj:IsA("Tool") or obj:IsA("Model") or obj:IsA("BasePart") then
+                    if not tracked[obj] then
+                        for cat, isOn in pairs(espToggles) do
+                            if isOn and isItem(obj, cat) then 
+                                createVisual(obj, ESP_COLORS[cat], cat) 
                             end
                         end
                     end
