@@ -6,7 +6,6 @@ local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
 
--- Глобальные переменные
 local autoFarmBank = false
 local aimbotEnabled = false
 local autoShootEnabled = false
@@ -16,12 +15,11 @@ local desiredJump = 50
 local tracked = {}
 local searchFilter = ""
 
--- ДОБАВЛЕНЫ КАТЕГОРИИ ДЛЯ КАРТОЧЕК
 local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, BlueCard = false, RedCard = false }
 local ESP_COLORS = {
     ShopWeapon = Color3.fromRGB(255, 100, 100), DropWeapon = Color3.fromRGB(200, 0, 0),
     Armor = Color3.fromRGB(50, 150, 255), Money = Color3.fromRGB(255, 200, 0), Food = Color3.fromRGB(0, 255, 150),
-    BlueCard = Color3.fromRGB(0, 255, 255), RedCard = Color3.fromRGB(255, 0, 0) -- Цвета для карточек
+    BlueCard = Color3.fromRGB(0, 255, 255), RedCard = Color3.fromRGB(255, 0, 0)
 }
 
 -- ==========================================
@@ -235,12 +233,12 @@ end
 createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(state) autoFarmBank = state end)
 
 -- ==========================================
--- 2. ESP (С поиском и Карточками)
+-- 2. ESP
 -- ==========================================
 local searchBox = Instance.new("TextBox")
 searchBox.Size = UDim2.new(1, -10, 0, 35)
 searchBox.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-searchBox.PlaceholderText = "Поиск предмета (например, ak47)..."
+searchBox.PlaceholderText = "Поиск предмета..."
 searchBox.Text = ""
 searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 searchBox.Font = Enum.Font.Gotham
@@ -306,8 +304,6 @@ createToggleButton(pageESP, "Оружие (Подобрать)", false, ESP_COLO
 createToggleButton(pageESP, "Броня", false, ESP_COLORS.Armor, function(state) espToggles.Armor = state end)
 createToggleButton(pageESP, "Деньги / Сейфы", false, ESP_COLORS.Money, function(state) espToggles.Money = state end)
 createToggleButton(pageESP, "Еда", false, ESP_COLORS.Food, function(state) espToggles.Food = state end)
-
--- НОВЫЕ КНОПКИ ДЛЯ КАРТОЧЕК
 createToggleButton(pageESP, "Синяя карточка", false, ESP_COLORS.BlueCard, function(state) espToggles.BlueCard = state end)
 createToggleButton(pageESP, "Красная карточка", false, ESP_COLORS.RedCard, function(state) espToggles.RedCard = state end)
 
@@ -437,7 +433,6 @@ local function getClosestTarget()
     local closestPlayer = nil
     local shortestDist = fovRadius
     local centerPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-    
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= player and p.Character then
             local head = p.Character:FindFirstChild("Head")
@@ -445,10 +440,7 @@ local function getClosestTarget()
                 local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
                 if onScreen then
                     local dist = (Vector2.new(screenPos.X, screenPos.Y) - centerPos).Magnitude
-                    if dist < shortestDist then
-                        shortestDist = dist
-                        closestPlayer = head
-                    end
+                    if dist < shortestDist then shortestDist = dist; closestPlayer = head end
                 end
             end
         end
@@ -457,7 +449,6 @@ local function getClosestTarget()
 end
 
 local lastShootTime = 0
-
 RunService.RenderStepped:Connect(function()
     if aimbotEnabled or autoShootEnabled then
         fovCircle.Visible = true
@@ -468,9 +459,7 @@ RunService.RenderStepped:Connect(function()
 
     if aimbotEnabled then
         local target = getClosestTarget()
-        if target then
-            camera.CFrame = CFrame.new(camera.CFrame.Position, target.Position)
-        end
+        if target then camera.CFrame = CFrame.new(camera.CFrame.Position, target.Position) end
     end
 
     if autoShootEnabled and player.Character then
@@ -506,39 +495,65 @@ local espFolder = Instance.new("Folder", Workspace)
 local function createVisual(part, color, category)
     if tracked[part] then return end
     local hl = Instance.new("Highlight"); hl.FillColor = color; hl.FillTransparency = 0.5; hl.OutlineColor = color; hl.Adornee = part; hl.Parent = espFolder
-    local bb = Instance.new("BillboardGui"); bb.Size = UDim2.new(0, 150, 0, 20); bb.AlwaysOnTop = true; bb.Adornee = part; bb.Parent = espFolder
-    local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(1, 0, 1, 0); lbl.BackgroundTransparency = 1; lbl.TextColor3 = color; lbl.Text = part.Name; lbl.Parent = bb
+    
+    local bb = Instance.new("BillboardGui"); bb.Size = UDim2.new(0, 150, 0, 20); bb.AlwaysOnTop = true
+    
+    -- Поддержка моделей
+    local targetPart = part
+    if part:IsA("Model") then
+        targetPart = part.PrimaryPart or part:FindFirstChildWhichIsA("BasePart")
+    end
+    
+    if targetPart then
+        bb.Adornee = targetPart
+        bb.Parent = espFolder
+        local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(1, 0, 1, 0); lbl.BackgroundTransparency = 1; lbl.TextColor3 = color; lbl.Text = part.Name; lbl.Parent = bb
+    end
     tracked[part] = {hl=hl, bb=bb, cat=category}
 end
 
+-- ВОЗВРАЩАЕМ ПРОВЕРКУ НА СТЕНЫ И УМНЫЙ ПОИСК ЦЕНЫ
 local function isItem(obj, category)
     local n = obj.Name:lower()
-    if n:find("sign") or n:find("wall") or n:find("mesh") or n:find("part") or n:find("building") or n:find("floor") or n:find("tutorial") then return false end
     
+    -- Поиск по строке (если введено в поиске)
     if searchFilter ~= "" then
         return n:find(searchFilter)
     end
 
-    -- ЛОГИКА ДЛЯ КАРТОЧЕК
-    if category == "BlueCard" then
-        return n:find("blue") and n:find("card") and (obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChildWhichIsA("ProximityPrompt") or obj:FindFirstChild("Handle"))
-    elseif category == "RedCard" then
-        return n:find("red") and n:find("card") and (obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChildWhichIsA("ProximityPrompt") or obj:FindFirstChild("Handle"))
+    -- Возвращаем проверку на стены/пол/мусор
+    if n:find("wall") or n:find("floor") or n:find("baseplate") or n:find("building") or n:find("sign") or n:find("mesh") or n:find("material") then 
+        return false 
     end
 
-    local isGun = n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle")
+    local isGun = n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon")
+    local isArmor = n:find("armor") or n:find("vest") or n:find("helmet")
+    local isMoney = n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n:find("cash") or n:find("money")
+    local isFood = n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger") or n:find("water")
+
+    -- УМНАЯ ПРОВЕРКА ЦЕНЫ (смотрим сам предмет и его родителя)
+    local function hasPrice(o)
+        return o:FindFirstChild("Price") or o:FindFirstChild("Cost") or o:FindFirstChildWhichIsA("NumberValue")
+    end
+    local objHasPrice = hasPrice(obj) or (obj.Parent and hasPrice(obj.Parent))
+
+    -- Проверка на возможность подобрать
+    local canPickup = obj:IsA("Tool") or obj:FindFirstChildWhichIsA("ClickDetector", true) or obj:FindFirstChildWhichIsA("ProximityPrompt", true) or obj:FindFirstChild("Handle", true)
+
     if category == "ShopWeapon" then 
-        return isGun and (obj:FindFirstChild("Price") or obj:FindFirstChild("Cost") or obj:FindFirstChildWhichIsA("NumberValue"))
+        return isGun and objHasPrice
     elseif category == "DropWeapon" then 
-        local isPickable = obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChildWhichIsA("ProximityPrompt")
-        local hasPrice = obj:FindFirstChild("Price") or obj:FindFirstChild("Cost")
-        return isGun and isPickable and not hasPrice
+        return isGun and canPickup and not objHasPrice
     elseif category == "Armor" then 
-        return (n:find("armor") or n:find("vest") or n:find("helmet")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop"))
+        return isArmor and (canPickup or objHasPrice)
     elseif category == "Money" then 
-        return (n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n:find("cash") or n:find("money")) and not n:find("register") and not n:find("tutorial")
+        return isMoney and not n:find("register") and not n:find("tutorial")
     elseif category == "Food" then 
-        return (n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop")) 
+        return isFood and (canPickup or objHasPrice) 
+    elseif category == "BlueCard" then
+        return n:find("blue") and (n:find("card") or n:find("key"))
+    elseif category == "RedCard" then
+        return n:find("red") and (n:find("card") or n:find("key"))
     end
     return false
 end
@@ -587,7 +602,7 @@ end)
 
 -- Отрисовка ESP
 task.spawn(function()
-    while task.wait(2) do
+    while task.wait(1.5) do
         local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
         if hrp then
             for p, d in pairs(tracked) do
@@ -595,10 +610,17 @@ task.spawn(function()
                     d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil
                 end
             end
+            
             for _, obj in ipairs(Workspace:GetDescendants()) do
                 if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
                     local objPos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
-                    if objPos and (objPos - hrp.Position).Magnitude < 500 then
+                    -- Если у модели нет PrimaryPart, ищем любую деталь
+                    if not objPos and obj:IsA("Model") then
+                        local p = obj:FindFirstChildWhichIsA("BasePart")
+                        objPos = p and p.Position
+                    end
+
+                    if objPos and (objPos - hrp.Position).Magnitude < 1000 then
                         if searchFilter ~= "" then
                             if obj.Name:lower():find(searchFilter) then createVisual(obj, Color3.fromRGB(255, 255, 255), "Search") end
                         else
