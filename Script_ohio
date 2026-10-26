@@ -24,7 +24,7 @@ local ESP_COLORS = {
 }
 
 -- ==========================================
--- СИСТЕМА УВЕДОМЛЕНИЙ (Вместо F9)
+-- СИСТЕМА УВЕДОМЛЕНИЙ
 -- ==========================================
 local notifGui = Instance.new("ScreenGui")
 notifGui.Name = "RocketNotifications"
@@ -34,7 +34,7 @@ notifGui.Parent = playerGui
 local function showNotification(text, isCard)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(0, 300, 0, 45)
-    frame.Position = UDim2.new(0.5, -150, 0.85, 50) -- Появляется внизу, чуть ниже экрана
+    frame.Position = UDim2.new(0.5, -150, 0.85, 50)
     frame.BackgroundColor3 = isCard and Color3.fromRGB(50, 20, 60) or Color3.fromRGB(20, 30, 40)
     frame.BorderSizePixel = 0
     frame.Parent = notifGui
@@ -55,11 +55,9 @@ local function showNotification(text, isCard)
     lbl.TextWrapped = true
     lbl.Parent = frame
 
-    -- Анимация выезда
     local tweenIn = TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {Position = UDim2.new(0.5, -150, 0.85, -20)})
     tweenIn:Play()
 
-    -- Анимация исчезновения через 3 секунды
     task.delay(3, function()
         local tweenOut = TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {Position = UDim2.new(0.5, -150, 0.85, 50)})
         tweenOut:Play()
@@ -554,12 +552,12 @@ local function createVisual(part, color, category)
     end
     tracked[part] = {hl=hl, bb=bb, cat=category}
     
-    -- ВЫЗОВ УВЕДОМЛЕНИЯ ДЛЯ КАРТОЧЕК
     if category == "BlueCard" or category == "RedCard" or category == "AllCards" then
         showNotification("Найдена карточка!\n" .. part.Name, true)
     end
 end
 
+-- ИСПРАВЛЕННЫЙ ФИЛЬТР
 local function isItem(obj, category)
     local n = obj.Name:lower()
     
@@ -571,35 +569,35 @@ local function isItem(obj, category)
     if obj.Parent and tracked[obj.Parent] then return false end
 
     local pName = obj.Parent and obj.Parent.Name:lower() or ""
-    local isCardType = n:find("card") or n:find("key") or n:find("pass") or n:find("id") or pName:find("card") or pName:find("key") or pName:find("pass") or pName:find("id")
-
+    
+    -- ЖЕСТКИЙ ПОИСК КАРТОЧЕК (Только слово card)
+    local isCardType = n:find("card") or pName:find("card")
     if isCardType then
-        if category == "BlueCard" or category == "AllCards" then
-            if (n:find("blue") or n:find("cyan") or n:find("lightblue") or pName:find("blue") or pName:find("cyan")) then
-                return true
-            end
-        end
-        if category == "RedCard" or category == "AllCards" then
-            if (n:find("red") or n:find("crimson") or n:find("darkred") or pName:find("red") or pName:find("crimson")) then
-                return true
-            end
-        end
-        if category == "AllCards" and not (n:find("blue") or n:find("red") or pName:find("blue") or pName:find("red")) then
-            return true
-        end
+        if category == "BlueCard" then return (n:find("blue") or pName:find("blue")) end
+        if category == "RedCard" then return (n:find("red") or pName:find("red")) end
+        if category == "AllCards" then return true end
     end
 
     local isGun = n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon")
     local parentIsGun = pName:find("gun") or pName:find("ak") or pName:find("m4") or pName:find("pistol") or pName:find("shotgun") or pName:find("rifle") or pName:find("weapon")
 
-    local function hasPrice(o) return o:FindFirstChild("Price") or o:FindFirstChild("Cost") or o:FindFirstChildWhichIsA("NumberValue") end
+    -- УМНАЯ ПРОВЕРКА ЦЕНЫ (ищем ценник в объекте, родителе или внутри как NumberValue)
+    local function hasPrice(o)
+        if o:FindFirstChild("Price") or o:FindFirstChild("Cost") then return true end
+        for _, v in ipairs(o:GetChildren()) do
+            if (v:IsA("NumberValue") or v:IsA("StringValue")) and (v.Name:lower():find("price") or v.Name:lower():find("cost")) then return true end
+        end
+        return false
+    end
     local objHasPrice = hasPrice(obj) or (obj.Parent and hasPrice(obj.Parent))
+    
     local canPickup = obj:IsA("Tool") or obj:FindFirstChildWhichIsA("ClickDetector", true) or obj:FindFirstChildWhichIsA("ProximityPrompt", true) or obj:FindFirstChild("Handle", true)
 
     if category == "ShopWeapon" then
         if n:find("shop") then return false end
         return (isGun or parentIsGun) and objHasPrice
     elseif category == "DropWeapon" then
+        -- Ищем только то, что можно взять и где НЕТ цены
         return (isGun or parentIsGun) and canPickup and not objHasPrice
     end
 
@@ -656,9 +654,9 @@ task.spawn(function()
     end
 end)
 
--- Отрисовка ESP
+-- Отрисовка ESP (ОПТИМИЗИРОВАНО: меньше радиус, дольше ожидание)
 task.spawn(function()
-    while task.wait(1.5) do
+    while task.wait(3) do -- Сканируем раз в 3 секунды (сильно снижает лаги)
         local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
         if hrp then
             for p, d in pairs(tracked) do
@@ -675,7 +673,8 @@ task.spawn(function()
                         objPos = p and p.Position
                     end
 
-                    if objPos and (objPos - hrp.Position).Magnitude < 1000 then
+                    -- Радиус снижен до 300 метров, чтобы не лагало
+                    if objPos and (objPos - hrp.Position).Magnitude < 300 then
                         if searchFilter ~= "" then
                             if obj.Name:lower():find(searchFilter) then createVisual(obj, Color3.fromRGB(255, 255, 255), "Search") end
                         else
