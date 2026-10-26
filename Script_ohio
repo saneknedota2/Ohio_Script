@@ -6,21 +6,19 @@ local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
 
--- Настройки
+-- Переменные состояний
 local autoFarmBank = false
+local silentAimEnabled = false
+local fovRadius = 150
 local desiredSpeed = 16
 local desiredJump = 50
 local tracked = {}
+
 local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false }
 local ESP_COLORS = {
     ShopWeapon = Color3.fromRGB(255, 100, 100), DropWeapon = Color3.fromRGB(200, 0, 0),
     Armor = Color3.fromRGB(50, 150, 255), Money = Color3.fromRGB(255, 200, 0), Food = Color3.fromRGB(0, 255, 150)
 }
-
--- Настройки Silent Aim
-local silentAimEnabled = false
-local fovRadius = 150 -- Радиус по умолчанию
-local targetPart = "Head" -- Куда целимся
 
 -- ==========================================
 -- ГЛАВНЫЙ GUI
@@ -81,7 +79,7 @@ local isOpen = false
 arrowBtn.MouseButton1Click:Connect(function()
     isOpen = not isOpen
     if isOpen then
-        mainFrame.Size = UDim2.new(0, 400, 0, 400) -- Увеличили высоту для новых кнопок
+        mainFrame.Size = UDim2.new(0, 400, 0, 400)
         arrowBtn.Text = "▲"
         contentFrame.Visible = true
     else
@@ -179,41 +177,35 @@ createTabButton("ESP", "ESP")
 createTabButton("Human", "HUMAN")
 createTabButton("Custom", "CUSTOM")
 
-local function createButton(parent, text, callback)
+-- УНИВЕРСАЛЬНАЯ КНОПКА
+local function createToggleButton(parent, labelText, initialVal, colorOn, callback)
+    local isOn = initialVal
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -10, 0, 35)
-    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-    btn.Text = text
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.BackgroundColor3 = isOn and colorOn or Color3.fromRGB(40, 40, 45)
+    btn.Text = labelText .. ": " .. (isOn and "ON" or "OFF")
+    btn.TextColor3 = isOn and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.GothamBold
     btn.TextSize = 14
     btn.Parent = parent
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-    btn.MouseButton1Click:Connect(callback)
+    
+    btn.MouseButton1Click:Connect(function()
+        isOn = not isOn
+        btn.Text = labelText .. ": " .. (isOn and "ON" or "OFF")
+        btn.BackgroundColor3 = isOn and colorOn or Color3.fromRGB(40, 40, 45)
+        btn.TextColor3 = isOn and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
+        if callback then callback(isOn) end
+    end)
     return btn
 end
 
 -- ==========================================
--- 1. MAIN (Добавлен Silent Aim)
+-- 1. MAIN
 -- ==========================================
--- Кнопка автофарма
-local btnFarm = createButton(pageMain, "Авто-Фарм Банка (ТП): OFF", function()
-    autoFarmBank = not autoFarmBank
-    btnFarm.Text = "Авто-Фарм Банка (ТП): " .. (autoFarmBank and "ON" or "OFF")
-    btnFarm.BackgroundColor3 = autoFarmBank and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(40, 40, 45)
-end)
+createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(state) autoFarmBank = state end)
+createToggleButton(pageMain, "Silent Aim", false, Color3.fromRGB(255, 50, 50), function(state) silentAimEnabled = state end)
 
--- Кнопка Silent Aim
-local btnSilent = createButton(pageMain, "Silent Aim: OFF", function()
-    silentAimEnabled = not silentAimEnabled
-    btnSilent.Text = "Silent Aim: " .. (silentAimEnabled and "ON" or "OFF")
-    btnSilent.BackgroundColor3 = silentAimEnabled and Color3.fromRGB(255, 50, 50) or Color3.fromRGB(40, 40, 45)
-    if not silentAimEnabled then
-        fovCircle.Visible = false
-    end
-end)
-
--- Ползунок радиуса
 local radiusFrame = Instance.new("Frame")
 radiusFrame.Size = UDim2.new(1, -10, 0, 50)
 radiusFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
@@ -223,18 +215,17 @@ Instance.new("UICorner", radiusFrame).CornerRadius = UDim.new(0, 6)
 local radiusLabel = Instance.new("TextLabel")
 radiusLabel.Size = UDim2.new(1, 0, 0, 20)
 radiusLabel.BackgroundTransparency = 1
-radiusLabel.Text = "Радиус: 150"
+radiusLabel.Text = "Радиус: " .. fovRadius
 radiusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 radiusLabel.Font = Enum.Font.GothamBold
 radiusLabel.TextSize = 12
 radiusLabel.Parent = radiusFrame
 
--- Используем TextBox вместо ползунка, так как на телефоне его проще вводить
 local radiusBox = Instance.new("TextBox")
 radiusBox.Size = UDim2.new(1, -20, 0, 20)
 radiusBox.Position = UDim2.new(0, 10, 0, 25)
 radiusBox.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-radiusBox.Text = "150"
+radiusBox.Text = tostring(fovRadius)
 radiusBox.TextColor3 = Color3.fromRGB(0, 255, 255)
 radiusBox.Font = Enum.Font.GothamBold
 radiusBox.TextSize = 12
@@ -243,37 +234,17 @@ Instance.new("UICorner", radiusBox).CornerRadius = UDim.new(0, 4)
 
 radiusBox.FocusLost:Connect(function()
     local val = tonumber(radiusBox.Text)
-    if val and val > 0 then
-        fovRadius = val
-        radiusLabel.Text = "Радиус: " .. val
-        updateFovCircle()
-    else
-        radiusBox.Text = tostring(fovRadius)
-    end
+    if val and val > 0 then fovRadius = val; radiusLabel.Text = "Радиус: " .. val else radiusBox.Text = tostring(fovRadius) end
 end)
 
 -- ==========================================
 -- 2. ESP
 -- ==========================================
-local function createESPToggle(label, key)
-    local btn = createButton(pageESP, label .. ": OFF", function()
-        espToggles[key] = not espToggles[key]
-        btn.Text = label .. ": " .. (espToggles[key] and "ON" or "OFF")
-        btn.BackgroundColor3 = espToggles[key] and ESP_COLORS[key] or Color3.fromRGB(40, 40, 45)
-        btn.TextColor3 = espToggles[key] and Color3.fromRGB(0,0,0) or Color3.fromRGB(255, 255, 255)
-        if not espToggles[key] then
-            for p, d in pairs(tracked) do
-                if d.cat == key then d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
-            end
-        end
-    end)
-end
-
-createESPToggle("Оружие (В продаже)", "ShopWeapon")
-createESPToggle("Оружие (Подобрать)", "DropWeapon")
-createESPToggle("Броня", "Armor")
-createESPToggle("Деньги / Сейфы", "Money")
-createESPToggle("Еда", "Food")
+createToggleButton(pageESP, "Оружие (В продаже)", false, ESP_COLORS.ShopWeapon, function(state) espToggles.ShopWeapon = state end)
+createToggleButton(pageESP, "Оружие (Подобрать)", false, ESP_COLORS.DropWeapon, function(state) espToggles.DropWeapon = state end)
+createToggleButton(pageESP, "Броня", false, ESP_COLORS.Armor, function(state) espToggles.Armor = state end)
+createToggleButton(pageESP, "Деньги / Сейфы", false, ESP_COLORS.Money, function(state) espToggles.Money = state end)
+createToggleButton(pageESP, "Еда", false, ESP_COLORS.Food, function(state) espToggles.Food = state end)
 
 -- ==========================================
 -- 3. HUMAN
@@ -322,86 +293,69 @@ end
 switchTab("main")
 
 -- ==========================================
--- SILENT AIM И ОТРИСОВКА КРУГА (FOV)
+-- КРУГ SILENT AIM
 -- ==========================================
 local fovCircle = Instance.new("Frame")
-fovCircle.Size = UDim2.new(0, 150, 0, 150) -- Размер задается в пикселях (радиус = половина размера)
+fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
 fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
 fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
 fovCircle.BackgroundTransparency = 1
 fovCircle.BorderSizePixel = 0
 fovCircle.Visible = false
 fovCircle.Parent = screenGui
-
-local circleCorner = Instance.new("UICorner")
-circleCorner.CornerRadius = UDim.new(1, 0) -- Делает круг
-circleCorner.Parent = fovCircle
-
-local circleStroke = Instance.new("UIStroke")
+Instance.new("UICorner", fovCircle).CornerRadius = UDim.new(1, 0)
+local circleStroke = Instance.new("UIStroke", fovCircle)
 circleStroke.Color = Color3.fromRGB(255, 255, 255)
 circleStroke.Thickness = 1
 circleStroke.Transparency = 0.5
-circleStroke.Parent = fovCircle
 
-local function updateFovCircle()
-    if not silentAimEnabled then
-        fovCircle.Visible = false
-        return
-    end
-    fovCircle.Visible = true
-    -- Диаметр круга = радиус * 2
-    fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
-end
-
--- Следим за камерой, чтобы круг всегда был в центре
 RunService.RenderStepped:Connect(function()
     if silentAimEnabled then
-        fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
-        updateFovCircle()
+        fovCircle.Visible = true
+        fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
+    else
+        fovCircle.Visible = false
     end
 end)
 
--- Логика наведения (Silent Aim)
-local function getClosestPlayerInFov()
-    local closestPlayer = nil
-    local shortestDist = fovRadius
-    local centerPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-    
-    for _, otherPlayer in ipairs(Players:GetPlayers()) do
-        if otherPlayer ~= player and otherPlayer.Character then
-            local head = otherPlayer.Character:FindFirstChild(targetPart)
-            if head then
-                -- Переводим 3D позицию в 2D экранную
-                local screenPoint, onScreen = camera:WorldToViewportPoint(head.Position)
-                if onScreen then
-                    local screenPos = Vector2.new(screenPoint.X, screenPoint.Y)
-                    local dist = (screenPos - centerPos).Magnitude
-                    
-                    if dist < shortestDist then
-                        shortestDist = dist
-                        closestPlayer = head
-                    end
-                end
-            end
-        end
-    end
-    return closestPlayer
-end
-
--- Хук на клик мыши (когда стреляешь)
+-- ==========================================
+-- ФИКС SILENT AIM (Проверка на оружие)
+-- ==========================================
 local mt = getrawmetatable(game)
 local oldNamecall = mt.__namecall
 setreadonly(mt, false)
 
 mt.__namecall = newcclosure(function(self, ...)
     local method = getnamecallmethod()
-    -- Если скрипт пытается выстрелить
-    if (method == 'Fire' or method == 'InvokeServer' or method == 'FindPartOnRay') and silentAimEnabled then
-        if self:IsA("Tool") or tostring(self):find("Gun") then
-            local target = getClosestPlayerInFov()
-            if target then
-                -- Подменяем цель на игрока в радиусе
-                return oldNamecall(self, target, ...)
+    
+    -- Срабатывает ТОЛЬКО если включен SilentAim, И если инструмент в руках похож на оружие
+    if silentAimEnabled and (method == 'Fire' or method == 'InvokeServer' or method == 'FindPartOnRay') then
+        local toolName = self.Name:lower()
+        -- Проверяем, что это реально пушка, а не кнопка магазина
+        if toolName:find("gun") or toolName:find("ak") or toolName:find("m4") or toolName:find("pistol") or toolName:find("shotgun") or toolName:find("rifle") then
+            
+            local centerPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+            local closestPart = nil
+            local shortestDist = fovRadius
+            
+            for _, p in pairs(Players:GetPlayers()) do
+                if p ~= player and p.Character then
+                    local head = p.Character:FindFirstChild("Head")
+                    if head then
+                        local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
+                        if onScreen then
+                            local dist = (Vector2.new(screenPos.X, screenPos.Y) - centerPos).Magnitude
+                            if dist < shortestDist then
+                                shortestDist = dist
+                                closestPart = head
+                            end
+                        end
+                    end
+                end
+            end
+            
+            if closestPart then
+                return oldNamecall(self, closestPart, ...)
             end
         end
     end
@@ -422,5 +376,94 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- [Здесь код ESP, Автофарма и т.д. из предыдущего сообщения]
--- (Я не буду копировать его сюда снова, чтобы не раздувать код, но в итоговом скрипте он должен быть)
+local espFolder = Instance.new("Folder", Workspace)
+local function createVisual(part, color, category)
+    if tracked[part] then return end
+    local hl = Instance.new("Highlight"); hl.FillColor = color; hl.FillTransparency = 0.5; hl.OutlineColor = color; hl.Adornee = part; hl.Parent = espFolder
+    local bb = Instance.new("BillboardGui"); bb.Size = UDim2.new(0, 150, 0, 20); bb.AlwaysOnTop = true; bb.Adornee = part; bb.Parent = espFolder
+    local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(1, 0, 1, 0); lbl.BackgroundTransparency = 1; lbl.TextColor3 = color; lbl.Text = part.Name; lbl.Parent = bb
+    tracked[part] = {hl=hl, bb=bb, cat=category}
+end
+
+local function isItem(obj, category)
+    local n = obj.Name:lower()
+    if n:find("sign") or n:find("wall") or n:find("mesh") or n:find("part") or n:find("building") or n:find("floor") or n:find("tutorial") then return false end
+    local isGun = n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle")
+    if category == "ShopWeapon" then 
+        return isGun and (obj:FindFirstChild("Price") or obj:FindFirstChild("Cost") or obj:FindFirstChildWhichIsA("NumberValue"))
+    elseif category == "DropWeapon" then 
+        local isPickable = obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChildWhichIsA("ProximityPrompt")
+        local hasPrice = obj:FindFirstChild("Price") or obj:FindFirstChild("Cost")
+        return isGun and isPickable and not hasPrice
+    elseif category == "Armor" then 
+        return (n:find("armor") or n:find("vest") or n:find("helmet")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop"))
+    elseif category == "Money" then 
+        return (n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n:find("cash") or n:find("money")) and not n:find("register") and not n:find("tutorial")
+    elseif category == "Food" then 
+        return (n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop")) 
+    end
+    return false
+end
+
+task.spawn(function()
+    while task.wait(0.3) do 
+        if autoFarmBank and player.Character then
+            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local targetObj = nil
+                local shortestDist = 1000
+                for _, obj in ipairs(Workspace:GetDescendants()) do
+                    if obj:IsA("BasePart") or obj:IsA("Model") then
+                        local n = obj.Name:lower()
+                        if (n == "bankcash" or n == "cash" or n == "money" or n == "moneydrop") then
+                            if not (n:find("register") or n:find("atm") or n:find("cashier") or n:find("shelf") or n:find("box") or n:find("safe") or n:find("vault") or n:find("tutorial")) then
+                                local click = obj:FindFirstChildWhichIsA("ClickDetector", true)
+                                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                if click or prompt then
+                                    local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
+                                    if pos then
+                                        local dist = (pos - hrp.Position).Magnitude
+                                        if dist < shortestDist then shortestDist = dist; targetObj = obj end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+                if targetObj then
+                    local targetPos = targetObj:IsA("BasePart") and targetObj.Position or (targetObj.PrimaryPart and targetObj.PrimaryPart.Position)
+                    if targetPos then
+                        hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
+                        task.wait(0.05) 
+                        local prompt = targetObj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                        if prompt then fireproximityprompt(prompt) end
+                        local click = targetObj:FindFirstChildWhichIsA("ClickDetector", true)
+                        if click then fireclickdetector(click) end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(2) do
+        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
+        for p, d in pairs(tracked) do
+            if not p.Parent or not espToggles[d.cat] then
+                d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil
+            end
+        end
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
+                local objPos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
+                if objPos and (objPos - hrp.Position).Magnitude < 500 then
+                    for cat, isOn in pairs(espToggles) do
+                        if isOn and isItem(obj, cat) then createVisual(obj, ESP_COLORS[cat], cat) end
+                    end
+                end
+            end
+        end
+    end
+end)
