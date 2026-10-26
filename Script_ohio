@@ -2,21 +2,14 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
 
 -- Переменные
 local autoFarmBank = false
-local aimbotEnabled = false
-local autoShootEnabled = false
-local speedHackEnabled = false
-local jumpHackEnabled = false
-local followPlayer = nil
-local fovRadius = 150
-local desiredSpeed = 50
-local desiredJump = 100
+local freeCamEnabled = false
+local spectateTarget = nil
 local tracked = {}
 
 local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, AllCards = false, PlayersESP = false }
@@ -56,7 +49,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu (Final)"
+titleText.Text = "ROCKET | Ohio Menu (Bank Farm)"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 15
@@ -124,7 +117,7 @@ tabBar.BackgroundTransparency = 1
 tabBar.Parent = contentFrame
 local tabLayout = Instance.new("UIListLayout", tabBar)
 tabLayout.FillDirection = Enum.FillDirection.Horizontal
-tabLayout.Padding = UDim.new(0, 10)
+tabLayout.Padding = UDim.new(0, 5)
 tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local pageContainer = Instance.new("Frame")
@@ -152,7 +145,6 @@ end
 
 local pageMain = createPage("main")
 local pageESP = createPage("ESP")
-local pageHuman = createPage("HUMAN")
 local pagePlayers = createPage("PLAYERS")
 
 local function switchTab(tabName)
@@ -164,7 +156,7 @@ end
 
 local function createTabButton(text, tabName)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 70, 0, 30)
+    btn.Size = UDim2.new(0, 80, 0, 30)
     btn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
     btn.Text = text
     btn.Font = Enum.Font.GothamBold
@@ -178,7 +170,6 @@ end
 
 createTabButton("Main", "main")
 createTabButton("ESP", "ESP")
-createTabButton("Human", "HUMAN")
 createTabButton("Players", "PLAYERS")
 
 -- ==========================================
@@ -206,34 +197,11 @@ local function createToggleButton(parent, labelText, initialVal, colorOn, callba
     return btn
 end
 
-local function createStatSetting(parent, label, defaultVal, callback)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -10, 0, 35)
-    frame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-    frame.Parent = parent
-    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
-    local txtLbl = Instance.new("TextLabel")
-    txtLbl.Size = UDim2.new(0.5, 0, 1, 0); txtLbl.Position = UDim2.new(0, 10, 0, 0)
-    txtLbl.BackgroundTransparency = 1; txtLbl.Text = label
-    txtLbl.TextColor3 = Color3.fromRGB(255, 255, 255); txtLbl.Font = Enum.Font.GothamBold; txtLbl.TextSize = 14
-    txtLbl.TextXAlignment = Enum.TextXAlignment.Left; txtLbl.Parent = frame
-    local txtBox = Instance.new("TextBox")
-    txtBox.Size = UDim2.new(0.3, 0, 0, 25); txtBox.Position = UDim2.new(0.65, 0, 0, 5)
-    txtBox.BackgroundColor3 = Color3.fromRGB(20, 20, 25); txtBox.Text = tostring(defaultVal)
-    txtBox.TextColor3 = Color3.fromRGB(0, 255, 255); txtBox.Font = Enum.Font.GothamBold; txtBox.TextSize = 14
-    txtBox.Parent = frame; Instance.new("UICorner", txtBox).CornerRadius = UDim.new(0, 4)
-    local function apply()
-        local num = tonumber(txtBox.Text)
-        if num then callback(num) else txtBox.Text = tostring(defaultVal) end
-    end
-    txtBox.FocusLost:Connect(apply)
-    txtBox.ReturnPressedFromOnScreenKeyboard:Connect(apply)
-end
-
 -- ==========================================
 -- 1. MAIN
 -- ==========================================
-createToggleButton(pageMain, "Авто-Фарм Денег (ТП)", false, Color3.fromRGB(0, 200, 100), function(state) autoFarmBank = state end)
+createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(state) autoFarmBank = state end)
+createToggleButton(pageMain, "Free Cam (Свободная камера)", false, Color3.fromRGB(0, 150, 255), function(state) freeCamEnabled = state end)
 
 -- ==========================================
 -- 2. ESP
@@ -241,85 +209,13 @@ createToggleButton(pageMain, "Авто-Фарм Денег (ТП)", false, Color
 createToggleButton(pageESP, "Оружие (В продаже)", false, ESP_COLORS.ShopWeapon, function(state) espToggles.ShopWeapon = state end)
 createToggleButton(pageESP, "Оружие (Подобрать)", false, ESP_COLORS.DropWeapon, function(state) espToggles.DropWeapon = state end)
 createToggleButton(pageESP, "Броня (Жилеты)", false, ESP_COLORS.Armor, function(state) espToggles.Armor = state end)
-createToggleButton(pageESP, "Деньги / Банкоматы", false, ESP_COLORS.Money, function(state) espToggles.Money = state end)
+createToggleButton(pageESP, "Деньги (Купюры)", false, ESP_COLORS.Money, function(state) espToggles.Money = state end)
 createToggleButton(pageESP, "Еда", false, ESP_COLORS.Food, function(state) espToggles.Food = state end)
 createToggleButton(pageESP, "Все карточки", false, ESP_COLORS.AllCards, function(state) espToggles.AllCards = state end)
 createToggleButton(pageESP, "Игроки (Ники)", false, ESP_COLORS.PlayersESP, function(state) espToggles.PlayersESP = state end)
 
 -- ==========================================
--- 3. HUMAN
--- ==========================================
-createStatSetting(pageHuman, "Скорость:", 16, function(val) desiredSpeed = val end)
-createStatSetting(pageHuman, "Прыжок:", 50, function(val) desiredJump = val end)
-
-createToggleButton(pageHuman, "Включить Скорость", false, Color3.fromRGB(0, 200, 100), function(state) speedHackEnabled = state end)
-createToggleButton(pageHuman, "Включить Прыжок", false, Color3.fromRGB(0, 200, 100), function(state) jumpHackEnabled = state end)
-
-local aimbotExpandBtn = Instance.new("TextButton")
-aimbotExpandBtn.Size = UDim2.new(1, -10, 0, 35)
-aimbotExpandBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-aimbotExpandBtn.Text = "Настройки Aimbot ▼"
-aimbotExpandBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-aimbotExpandBtn.Font = Enum.Font.GothamBold
-aimbotExpandBtn.Parent = pageHuman
-Instance.new("UICorner", aimbotExpandBtn).CornerRadius = UDim.new(0, 6)
-
-local aimbotSettings = Instance.new("Frame")
-aimbotSettings.Size = UDim2.new(1, -10, 0, 0)
-aimbotSettings.BackgroundTransparency = 1
-aimbotSettings.ClipsDescendants = true
-aimbotSettings.Parent = pageHuman
-local aimLayout = Instance.new("UIListLayout", aimbotSettings)
-aimLayout.Padding = UDim.new(0, 8)
-
-createToggleButton(aimbotSettings, "Плавный Aimbot", false, Color3.fromRGB(255, 50, 50), function(state) aimbotEnabled = state end)
-createToggleButton(aimbotSettings, "Auto-Shoot (Стрельба)", false, Color3.fromRGB(255, 100, 0), function(state) autoShootEnabled = state end)
-
-local radiusFrame = Instance.new("Frame")
-radiusFrame.Size = UDim2.new(1, 0, 0, 50)
-radiusFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-radiusFrame.Parent = aimbotSettings
-Instance.new("UICorner", radiusFrame).CornerRadius = UDim.new(0, 6)
-
-local radiusLabel = Instance.new("TextLabel")
-radiusLabel.Size = UDim2.new(1, 0, 0, 20)
-radiusLabel.BackgroundTransparency = 1
-radiusLabel.Text = "Радиус (FOV): " .. fovRadius
-radiusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-radiusLabel.Font = Enum.Font.GothamBold
-radiusLabel.TextSize = 12
-radiusLabel.Parent = radiusFrame
-
-local radiusBox = Instance.new("TextBox")
-radiusBox.Size = UDim2.new(1, -20, 0, 20)
-radiusBox.Position = UDim2.new(0, 10, 0, 25)
-radiusBox.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-radiusBox.Text = tostring(fovRadius)
-radiusBox.TextColor3 = Color3.fromRGB(0, 255, 255)
-radiusBox.Font = Enum.Font.GothamBold
-radiusBox.TextSize = 12
-radiusBox.Parent = radiusFrame
-Instance.new("UICorner", radiusBox).CornerRadius = UDim.new(0, 4)
-
-radiusBox.FocusLost:Connect(function()
-    local val = tonumber(radiusBox.Text)
-    if val and val > 0 then fovRadius = val; radiusLabel.Text = "Радиус (FOV): " .. val else radiusBox.Text = tostring(fovRadius) end
-end)
-
-local aimbotOpen = false
-aimbotExpandBtn.MouseButton1Click:Connect(function()
-    aimbotOpen = not aimbotOpen
-    if aimbotOpen then
-        aimbotExpandBtn.Text = "Настройки Aimbot ▲"
-        aimbotSettings.Size = UDim2.new(1, 0, 0, 160)
-    else
-        aimbotExpandBtn.Text = "Настройки Aimbot ▼"
-        aimbotSettings.Size = UDim2.new(1, 0, 0, 0)
-    end
-end)
-
--- ==========================================
--- 4. PLAYERS (Новая вкладка)
+-- 3. PLAYERS (Список игроков)
 -- ==========================================
 local playerListFrame = Instance.new("ScrollingFrame")
 playerListFrame.Size = UDim2.new(1, -10, 1, -10)
@@ -332,7 +228,7 @@ playerListLayout.Padding = UDim.new(0, 8)
 
 local function updatePlayerList()
     for _, child in ipairs(playerListFrame:GetChildren()) do
-        if child:IsA("TextButton") or child:IsA("Frame") then child:Destroy() end
+        if child:IsA("Frame") then child:Destroy() end
     end
     
     for _, p in ipairs(Players:GetPlayers()) do
@@ -343,8 +239,8 @@ local function updatePlayerList()
             frame.Parent = playerListFrame
             Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
             
-            local nameBtn = Instance.new("TextButton")
-            nameBtn.Size = UDim2.new(0.6, 0, 1, 0)
+            local nameBtn = Instance.new("TextLabel")
+            nameBtn.Size = UDim2.new(0.4, 0, 1, 0)
             nameBtn.BackgroundTransparency = 1
             nameBtn.Text = p.DisplayName
             nameBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -352,36 +248,52 @@ local function updatePlayerList()
             nameBtn.TextSize = 12
             nameBtn.Parent = frame
             
-            local tpBtn = Instance.new("TextButton")
-            tpBtn.Size = UDim2.new(0.2, 0, 0.8, 0)
-            tpBtn.Position = UDim2.new(0.6, 0, 0.1, 0)
-            tpBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-            tpBtn.Text = "ТП"
-            tpBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            tpBtn.Font = Enum.Font.GothamBold
-            tpBtn.TextSize = 12
-            tpBtn.Parent = frame
-            Instance.new("UICorner", tpBtn).CornerRadius = UDim.new(0, 4)
+            local tpMeBtn = Instance.new("TextButton")
+            tpMeBtn.Size = UDim2.new(0.25, 0, 0.8, 0)
+            tpMeBtn.Position = UDim2.new(0.4, 0, 0.1, 0)
+            tpMeBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+            tpMeBtn.Text = "Ко мне"
+            tpMeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            tpMeBtn.Font = Enum.Font.GothamBold
+            tpMeBtn.TextSize = 11
+            tpMeBtn.Parent = frame
+            Instance.new("UICorner", tpMeBtn).CornerRadius = UDim.new(0, 4)
             
-            local followBtn = Instance.new("TextButton")
-            followBtn.Size = UDim2.new(0.2, 0, 0.8, 0)
-            followBtn.Position = UDim2.new(0.8, 0, 0.1, 0)
-            followBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
-            followBtn.Text = "Следить"
-            followBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            followBtn.Font = Enum.Font.GothamBold
-            followBtn.TextSize = 12
-            followBtn.Parent = frame
-            Instance.new("UICorner", followBtn).CornerRadius = UDim.new(0, 4)
+            local specBtn = Instance.new("TextButton")
+            specBtn.Size = UDim2.new(0.3, 0, 0.8, 0)
+            specBtn.Position = UDim2.new(0.68, 0, 0.1, 0)
+            specBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
+            specBtn.Text = "Следить"
+            specBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            specBtn.Font = Enum.Font.GothamBold
+            specBtn.TextSize = 11
+            specBtn.Parent = frame
+            Instance.new("UICorner", specBtn).CornerRadius = UDim.new(0, 4)
             
-            tpBtn.MouseButton1Click:Connect(function()
+            tpMeBtn.MouseButton1Click:Connect(function()
                 if p.Character and p.Character:FindFirstChild("HumanoidRootPart") and player.Character then
-                    player.Character.HumanoidRootPart.CFrame = p.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+                    p.Character.HumanoidRootPart.CFrame = player.Character.HumanoidRootPart.CFrame + Vector3.new(0, 0, 3)
                 end
             end)
             
-            followBtn.MouseButton1Click:Connect(function()
-                followPlayer = p
+            specBtn.MouseButton1Click:Connect(function()
+                if spectateTarget == p then
+                    spectateTarget = nil
+                    specBtn.Text = "Следить"
+                    specBtn.BackgroundColor3 = Color3.fromRGB(255, 100, 0)
+                    camera.CameraSubject = player.Character and player.Character:FindFirstChild("Humanoid")
+                else
+                    spectateTarget = p
+                    specBtn.Text = "Отмена"
+                    specBtn.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+                    if p.Character then
+                        local head = p.Character:FindFirstChild("Head")
+                        if head then
+                            camera.CameraSubject = head
+                            camera.CFrame = CFrame.new(head.Position + Vector3.new(0, 5, 10), head.Position)
+                        end
+                    end
+                end
             end)
         end
     end
@@ -390,7 +302,10 @@ end
 updatePlayerList()
 Players.PlayerAdded:Connect(updatePlayerList)
 Players.PlayerRemoving:Connect(function(p) 
-    if followPlayer == p then followPlayer = nil end
+    if spectateTarget == p then
+        spectateTarget = nil
+        camera.CameraSubject = player.Character and player.Character:FindFirstChild("Humanoid")
+    end
     task.wait(1)
     updatePlayerList()
 end)
@@ -398,104 +313,49 @@ end)
 switchTab("main")
 
 -- ==========================================
--- КРУГ FOV
+-- FREE CAM И СЛЕЖКА
 -- ==========================================
-local fovCircle = Instance.new("Frame")
-fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
-fovCircle.Position = UDim2.new(0.5, 0, 0.5, 0)
-fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-fovCircle.BackgroundTransparency = 1
-fovCircle.BorderSizePixel = 0
-fovCircle.Visible = false
-fovCircle.Parent = screenGui
-Instance.new("UICorner", fovCircle).CornerRadius = UDim.new(1, 0)
-local circleStroke = Instance.new("UIStroke", fovCircle)
-circleStroke.Color = Color3.fromRGB(255, 50, 50)
-circleStroke.Thickness = 1
-circleStroke.Transparency = 0.3
-
--- ==========================================
--- ПЛАВНЫЙ АИМБОТ
--- ==========================================
-local function getClosestTarget()
-    local closestPlayer = nil
-    local shortestDist = fovRadius
-    local centerPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-    
-    for _, p in pairs(Players:GetPlayers()) do
-        if p ~= player and p.Character then
-            local head = p.Character:FindFirstChild("Head")
-            if head then
-                local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
-                if onScreen then
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - centerPos).Magnitude
-                    if dist < shortestDist then
-                        shortestDist = dist
-                        closestPlayer = head
-                    end
-                end
-            end
-        end
-    end
-    return closestPlayer
-end
+local freeCamConnection
+local freeCamSpeed = 50
 
 RunService.RenderStepped:Connect(function()
-    if aimbotEnabled or autoShootEnabled then
-        fovCircle.Visible = true
-        fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
-    else
-        fovCircle.Visible = false
-    end
-
-    if aimbotEnabled then
-        local target = getClosestTarget()
-        if target then
-            -- Плавное наведение через CFrame:Lerp
-            local currentCFrame = camera.CFrame
-            local targetCFrame = CFrame.new(currentCFrame.Position, target.Position)
-            camera.CFrame = currentCFrame:Lerp(targetCFrame, 0.15) -- 0.15 = скорость наведения (чем меньше, тем плавнее)
-        end
-    end
-
-    if autoShootEnabled and player.Character then
-        local tool = player.Character:FindFirstChildWhichIsA("Tool")
-        if tool then
-            local target = getClosestTarget()
-            if target then pcall(function() tool:Activate() end) end
-        end
-    end
-end)
-
--- ==========================================
--- ФИЗИКА (ПЕРЕКЛЮЧАТЕЛИ)
--- ==========================================
-RunService.Heartbeat:Connect(function()
-    if player.Character then
-        local hum = player.Character:FindFirstChild("Humanoid")
-        if hum then
-            if speedHackEnabled then
-                if hum.WalkSpeed ~= desiredSpeed then hum.WalkSpeed = desiredSpeed end
-            else
-                if hum.WalkSpeed ~= 16 then hum.WalkSpeed = 16 end
-            end
-            
-            if jumpHackEnabled then
-                if hum.JumpPower ~= desiredJump then hum.JumpPower = desiredJump; hum.UseJumpPower = true end
-            else
-                if hum.JumpPower ~= 50 then hum.JumpPower = 50; hum.UseJumpPower = true end
-            end
+    if freeCamEnabled then
+        if not freeCamConnection then
+            camera.CameraType = Enum.CameraType.Scriptable
+            freeCamConnection = true
         end
         
-        -- Слежка за игроком
-        if followPlayer and followPlayer.Character and followPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            camera.CFrame = CFrame.new(camera.CFrame.Position, followPlayer.Character.HumanoidRootPart.Position)
+        local moveDir = Vector3.new(0, 0, 0)
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then moveDir = moveDir + camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then moveDir = moveDir - camera.CFrame.LookVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then moveDir = moveDir - camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then moveDir = moveDir + camera.CFrame.RightVector end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then moveDir = moveDir + Vector3.new(0, 1, 0) end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then moveDir = moveDir - Vector3.new(0, 1, 0) end
+        
+        camera.CFrame = camera.CFrame + moveDir * freeCamSpeed * 0.01
+        
+    elseif spectateTarget and spectateTarget.Character then
+        if freeCamConnection then
+            camera.CameraType = Enum.CameraType.Custom
+            freeCamConnection = nil
+        end
+        
+        local head = spectateTarget.Character:FindFirstChild("Head")
+        if head then
+            camera.CameraSubject = head
+        end
+    else
+        if freeCamConnection then
+            camera.CameraType = Enum.CameraType.Custom
+            freeCamConnection = nil
+            camera.CameraSubject = player.Character and player.Character:FindFirstChild("Humanoid")
         end
     end
 end)
 
 -- ==========================================
--- ESP ЛОГИКА (1000 метров, без лагов)
+-- ESP ЛОГИКА
 -- ==========================================
 local espFolder = Instance.new("Folder", Workspace)
 
@@ -540,77 +400,74 @@ end
 
 task.spawn(function()
     while task.wait(2) do
-        local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            for p, d in pairs(tracked) do
-                if not p.Parent or not espToggles[d.cat] then
-                    d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil
-                end
+        for p, d in pairs(tracked) do
+            if not p.Parent or not espToggles[d.cat] then
+                d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil
             end
+        end
+        
+        local parts = getAllObjects()
+        local checked = {}
+        local count = 0
+        
+        for _, obj in ipairs(parts) do
+            local isPlayer = Players:GetPlayerFromCharacter(obj) or (obj.Parent and Players:GetPlayerFromCharacter(obj.Parent))
             
-            local parts = getAllObjects()
-            local checked = {}
-            local count = 0
-            
-            for _, obj in ipairs(parts) do
-                local isPlayer = Players:GetPlayerFromCharacter(obj) or (obj.Parent and Players:GetPlayerFromCharacter(obj.Parent))
+            if not checked[obj] and not tracked[obj] then
+                checked[obj] = true
+                local n = obj.Name:lower()
                 
-                if not checked[obj] and not tracked[obj] then
-                    checked[obj] = true
-                    local n = obj.Name:lower()
-                    
-                    -- Игроки
-                    if isPlayer and espToggles.PlayersESP then
-                        if obj:IsA("Model") and obj:FindFirstChild("Head") then
-                            createVisual(obj, ESP_COLORS.PlayersESP, "PlayersESP")
-                            count = count + 1
-                        end
-                    elseif not isPlayer then
-                        if not (n:find("fake") or n:find("glass") or n:find("wall") or n:find("floor") or n:find("room") or n:find("part") or n:find("hitbox") or n:find("baseplate")) then
-                            if n:find("ak") or n:find("m4") or n:find("gun") or n:find("glock") or n:find("m1911") or n:find("deagle") or n:find("сайга") or n:find("пистолет") or n:find("оружие") then
-                                local hasPrice = obj:FindFirstChild("Price") or obj:FindFirstChildWhichIsA("NumberValue") or (obj.Parent and obj.Parent:FindFirstChild("Price"))
-                                if hasPrice then
-                                    if espToggles.ShopWeapon then createVisual(obj, ESP_COLORS.ShopWeapon, "ShopWeapon"); count = count + 1 end
-                                else
-                                    if espToggles.DropWeapon then createVisual(obj, ESP_COLORS.DropWeapon, "DropWeapon"); count = count + 1 end
-                                end
-                            elseif n:find("жилет") or n:find("armor") or n:find("vest") then
-                                if espToggles.Armor then createVisual(obj, ESP_COLORS.Armor, "Armor"); count = count + 1 end
-                            elseif n:find("atm") or n == "cash" or n == "money" or n:find("bankcash") then
-                                if espToggles.Money then createVisual(obj, ESP_COLORS.Money, "Money"); count = count + 1 end
-                            elseif n:find("card") or n:find("key") then
-                                if espToggles.AllCards then createVisual(obj, ESP_COLORS.AllCards, "AllCards"); count = count + 1 end
-                            elseif n:find("food") or n:find("medkit") or n:find("bandage") then
-                                if espToggles.Food then createVisual(obj, ESP_COLORS.Food, "Food"); count = count + 1 end
+                if isPlayer and espToggles.PlayersESP then
+                    if obj:IsA("Model") and obj:FindFirstChild("Head") then
+                        createVisual(obj, ESP_COLORS.PlayersESP, "PlayersESP")
+                        count = count + 1
+                    end
+                elseif not isPlayer then
+                    if not (n:find("fake") or n:find("glass") or n:find("wall") or n:find("floor") or n:find("room") or n:find("part") or n:find("hitbox") or n:find("baseplate") or n:find("atm") or n:find("tutorial") or n:find("menu")) then
+                        if n:find("ak") or n:find("m4") or n:find("gun") or n:find("glock") or n:find("m1911") or n:find("deagle") or n:find("сайга") or n:find("пистолет") or n:find("оружие") then
+                            local hasPrice = obj:FindFirstChild("Price") or obj:FindFirstChildWhichIsA("NumberValue") or (obj.Parent and obj.Parent:FindFirstChild("Price"))
+                            if hasPrice then
+                                if espToggles.ShopWeapon then createVisual(obj, ESP_COLORS.ShopWeapon, "ShopWeapon"); count = count + 1 end
+                            else
+                                if espToggles.DropWeapon then createVisual(obj, ESP_COLORS.DropWeapon, "DropWeapon"); count = count + 1 end
                             end
+                        elseif n:find("жилет") or n:find("armor") or n:find("vest") then
+                            if espToggles.Armor then createVisual(obj, ESP_COLORS.Armor, "Armor"); count = count + 1 end
+                        elseif n == "cash" or n == "money" or n:find("bankcash") or n:find("moneydrop") then
+                            if espToggles.Money then createVisual(obj, ESP_COLORS.Money, "Money"); count = count + 1 end
+                        elseif n:find("card") or n:find("key") then
+                            if espToggles.AllCards then createVisual(obj, ESP_COLORS.AllCards, "AllCards"); count = count + 1 end
+                        elseif n:find("food") or n:find("medkit") or n:find("bandage") then
+                            if espToggles.Food then createVisual(obj, ESP_COLORS.Food, "Food"); count = count + 1 end
                         end
                     end
                 end
-                
-                if count > 50 then break end
             end
+            
+            if count > 50 then break end
         end
     end
 end)
 
 -- ==========================================
--- АВТО-ФАРМ (1000 метров, рывками)
+-- АВТО-ФАРМ (ТОЛЬКО БАНК)
 -- ==========================================
 task.spawn(function()
-    while task.wait(0.5) do
+    while task.wait(0.15) do
         if autoFarmBank and player.Character then
             local hrp = player.Character:FindFirstChild("HumanoidRootPart")
             local hum = player.Character:FindFirstChild("Humanoid")
             
             if hrp and hum then
-                local parts = getAllObjects()
                 local targetCash = nil
                 local shortestDist = math.huge
                 
-                for _, obj in ipairs(parts) do
+                -- Ищем только купюры в радиусе всей карты
+                for _, obj in ipairs(Workspace:GetDescendants()) do
                     local n = obj.Name:lower()
                     if (n == "cash" or n == "money" or n:find("bankcash") or n:find("moneydrop")) then
-                        if not n:find("atm") and not n:find("register") and not n:find("safe") then
+                        -- Жестко игнорируем банкоматы, кассы и туториалы
+                        if not (n:find("atm") or n:find("register") or n:find("safe") or n:find("tutorial") or n:find("vault")) then
                             local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
                             if pos then
                                 local dist = (pos - hrp.Position).Magnitude
@@ -623,26 +480,19 @@ task.spawn(function()
                     end
                 end
 
+                -- Если нашли кучку, тепаемся и собираем
                 if targetCash then
                     local pos = targetCash:IsA("BasePart") and targetCash.Position or (targetCash.PrimaryPart and targetCash.PrimaryPart.Position)
                     if pos then
-                        if shortestDist > 25 then
-                            local dir = (pos - hrp.Position).Unit
-                            local newPos = hrp.Position + (dir * 25)
-                            pcall(function()
-                                hrp.CFrame = CFrame.new(newPos)
-                                hum.WalkSpeed = 16
-                            end)
-                        else
-                            pcall(function()
-                                hrp.CFrame = CFrame.new(pos + Vector3.new(0, 2, 0))
-                                hum.WalkSpeed = 16
-                                local prompt = targetCash:FindFirstChildWhichIsA("ProximityPrompt", true)
-                                if prompt then fireproximityprompt(prompt) end
-                                local click = targetCash:FindFirstChildWhichIsA("ClickDetector", true)
-                                if click then fireclickdetector(click) end
-                            end)
-                        end
+                        pcall(function()
+                            hrp.CFrame = CFrame.new(pos + Vector3.new(0, 2, 0))
+                            hum.WalkSpeed = 16
+                            
+                            local prompt = targetCash:FindFirstChildWhichIsA("ProximityPrompt", true)
+                            if prompt then fireproximityprompt(prompt) end
+                            local click = targetCash:FindFirstChildWhichIsA("ClickDetector", true)
+                            if click then fireclickdetector(click) end
+                        end)
                     end
                 end
             end
