@@ -6,9 +6,10 @@ local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
 
--- Переменные состояний
 local autoFarmBank = false
+local aimbotEnabled = false
 local silentAimEnabled = false
+local autoShootEnabled = false
 local fovRadius = 150
 local desiredSpeed = 16
 local desiredJump = 50
@@ -40,7 +41,6 @@ local mainStroke = Instance.new("UIStroke", mainFrame)
 mainStroke.Thickness = 2
 mainStroke.Color = Color3.fromRGB(0, 150, 255)
 
--- Заголовок
 local titleBar = Instance.new("Frame")
 titleBar.Size = UDim2.new(1, 0, 0, 40)
 titleBar.BackgroundTransparency = 1
@@ -79,7 +79,7 @@ local isOpen = false
 arrowBtn.MouseButton1Click:Connect(function()
     isOpen = not isOpen
     if isOpen then
-        mainFrame.Size = UDim2.new(0, 400, 0, 400)
+        mainFrame.Size = UDim2.new(0, 400, 0, 420)
         arrowBtn.Text = "▲"
         contentFrame.Visible = true
     else
@@ -177,7 +177,6 @@ createTabButton("ESP", "ESP")
 createTabButton("Human", "HUMAN")
 createTabButton("Custom", "CUSTOM")
 
--- УНИВЕРСАЛЬНАЯ КНОПКА
 local function createToggleButton(parent, labelText, initialVal, colorOn, callback)
     local isOn = initialVal
     local btn = Instance.new("TextButton")
@@ -204,7 +203,15 @@ end
 -- 1. MAIN
 -- ==========================================
 createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(state) autoFarmBank = state end)
-createToggleButton(pageMain, "Silent Aim", false, Color3.fromRGB(255, 50, 50), function(state) silentAimEnabled = state end)
+
+-- МОДУЛЬ SILENT AIM (Пытается подменить пулю)
+createToggleButton(pageMain, "Silent Aim (Пули в цель)", false, Color3.fromRGB(255, 0, 0), function(state) 
+    silentAimEnabled = state 
+end)
+
+-- МОДУЛЬ AIMBOT (Крутит камеру)
+createToggleButton(pageMain, "Camera Aimbot (Поворот)", false, Color3.fromRGB(255, 50, 50), function(state) aimbotEnabled = state end)
+createToggleButton(pageMain, "Auto-Shoot (Авто-стрельба)", false, Color3.fromRGB(255, 100, 0), function(state) autoShootEnabled = state end)
 
 local radiusFrame = Instance.new("Frame")
 radiusFrame.Size = UDim2.new(1, -10, 0, 50)
@@ -215,7 +222,7 @@ Instance.new("UICorner", radiusFrame).CornerRadius = UDim.new(0, 6)
 local radiusLabel = Instance.new("TextLabel")
 radiusLabel.Size = UDim2.new(1, 0, 0, 20)
 radiusLabel.BackgroundTransparency = 1
-radiusLabel.Text = "Радиус: " .. fovRadius
+radiusLabel.Text = "Радиус (FOV): " .. fovRadius
 radiusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 radiusLabel.Font = Enum.Font.GothamBold
 radiusLabel.TextSize = 12
@@ -234,7 +241,7 @@ Instance.new("UICorner", radiusBox).CornerRadius = UDim.new(0, 4)
 
 radiusBox.FocusLost:Connect(function()
     local val = tonumber(radiusBox.Text)
-    if val and val > 0 then fovRadius = val; radiusLabel.Text = "Радиус: " .. val else radiusBox.Text = tostring(fovRadius) end
+    if val and val > 0 then fovRadius = val; radiusLabel.Text = "Радиус (FOV): " .. val else radiusBox.Text = tostring(fovRadius) end
 end)
 
 -- ==========================================
@@ -293,7 +300,7 @@ end
 switchTab("main")
 
 -- ==========================================
--- КРУГ SILENT AIM
+-- КРУГ FOV
 -- ==========================================
 local fovCircle = Instance.new("Frame")
 fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
@@ -305,63 +312,94 @@ fovCircle.Visible = false
 fovCircle.Parent = screenGui
 Instance.new("UICorner", fovCircle).CornerRadius = UDim.new(1, 0)
 local circleStroke = Instance.new("UIStroke", fovCircle)
-circleStroke.Color = Color3.fromRGB(255, 255, 255)
+circleStroke.Color = Color3.fromRGB(255, 50, 50)
 circleStroke.Thickness = 1
-circleStroke.Transparency = 0.5
+circleStroke.Transparency = 0.3
 
+-- ==========================================
+-- ПОИСК ЦЕЛИ
+-- ==========================================
+local function getClosestTarget()
+    local closestPlayer = nil
+    local shortestDist = fovRadius
+    local centerPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+    
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player and p.Character then
+            local head = p.Character:FindFirstChild("Head")
+            if head then
+                local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
+                if onScreen then
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - centerPos).Magnitude
+                    if dist < shortestDist then
+                        shortestDist = dist
+                        closestPlayer = head
+                    end
+                end
+            end
+        end
+    end
+    return closestPlayer
+end
+
+-- ==========================================
+-- SILENT AIM (Попытка хука)
+-- ==========================================
+-- Проверяем, есть ли вообще функция getrawmetatable (чтобы скрипт не крашился)
+local hasHook = pcall(function() return getrawmetatable end)
+
+if hasHook and getrawmetatable then
+    local mt = getrawmetatable(game)
+    local oldNamecall = mt.__namecall
+    setreadonly(mt, false)
+
+    mt.__namecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+        
+        -- Срабатывает только если SilentAim включен, и если это выстрел
+        if silentAimEnabled and (method == 'Fire' or method == 'InvokeServer' or method == 'FindPartOnRay') then
+            local toolName = self.Name:lower()
+            -- Проверяем, что в руках оружие (чтобы не ломать магазины)
+            if toolName:find("gun") or toolName:find("ak") or toolName:find("m4") or toolName:find("pistol") or toolName:find("shotgun") or toolName:find("rifle") then
+                local target = getClosestTarget()
+                if target then
+                    return oldNamecall(self, target, ...)
+                end
+            end
+        end
+        return oldNamecall(self, ...)
+    end)
+    setreadonly(mt, true)
+end
+
+-- ==========================================
+-- ЦИКЛЫ (Aimbot, Auto-Shoot, FOV)
+-- ==========================================
 RunService.RenderStepped:Connect(function()
-    if silentAimEnabled then
+    if aimbotEnabled or silentAimEnabled then
         fovCircle.Visible = true
         fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
     else
         fovCircle.Visible = false
     end
-end)
 
--- ==========================================
--- ФИКС SILENT AIM (Проверка на оружие)
--- ==========================================
-local mt = getrawmetatable(game)
-local oldNamecall = mt.__namecall
-setreadonly(mt, false)
+    if aimbotEnabled then
+        local target = getClosestTarget()
+        if target then
+            camera.CFrame = CFrame.new(camera.CFrame.Position, target.Position)
+        end
+    end
 
-mt.__namecall = newcclosure(function(self, ...)
-    local method = getnamecallmethod()
-    
-    -- Срабатывает ТОЛЬКО если включен SilentAim, И если инструмент в руках похож на оружие
-    if silentAimEnabled and (method == 'Fire' or method == 'InvokeServer' or method == 'FindPartOnRay') then
-        local toolName = self.Name:lower()
-        -- Проверяем, что это реально пушка, а не кнопка магазина
-        if toolName:find("gun") or toolName:find("ak") or toolName:find("m4") or toolName:find("pistol") or toolName:find("shotgun") or toolName:find("rifle") then
-            
-            local centerPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-            local closestPart = nil
-            local shortestDist = fovRadius
-            
-            for _, p in pairs(Players:GetPlayers()) do
-                if p ~= player and p.Character then
-                    local head = p.Character:FindFirstChild("Head")
-                    if head then
-                        local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
-                        if onScreen then
-                            local dist = (Vector2.new(screenPos.X, screenPos.Y) - centerPos).Magnitude
-                            if dist < shortestDist then
-                                shortestDist = dist
-                                closestPart = head
-                            end
-                        end
-                    end
-                end
-            end
-            
-            if closestPart then
-                return oldNamecall(self, closestPart, ...)
+    if autoShootEnabled and player.Character then
+        local tool = player.Character:FindFirstChildWhichIsA("Tool")
+        if tool then
+            local target = getClosestTarget()
+            if target then
+                pcall(function() tool:Activate() end)
             end
         end
     end
-    return oldNamecall(self, ...)
 end)
-setreadonly(mt, true)
 
 -- ==========================================
 -- ОСТАЛЬНЫЕ ЦИКЛЫ
