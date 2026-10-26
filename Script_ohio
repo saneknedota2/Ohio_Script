@@ -2,86 +2,35 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local UserInputService = game:GetService("UserInputService")
-local VirtualUser = game:GetService("VirtualUser")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
 
--- Настройки
+-- Глобальные переменные состояний
 local autoFarmBank = false
-local silentAimEnabled = false
+local aimbotEnabled = false
 local autoShootEnabled = false
-local wallCheckEnabled = true
-local targetPartName = "Head"
 local fovRadius = 150
 local desiredSpeed = 16
 local desiredJump = 50
 local tracked = {}
 
-local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, RedCard = false, BlueCard = false }
+local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false }
 local ESP_COLORS = {
     ShopWeapon = Color3.fromRGB(255, 100, 100), DropWeapon = Color3.fromRGB(200, 0, 0),
-    Armor = Color3.fromRGB(50, 150, 255), Money = Color3.fromRGB(255, 200, 0), Food = Color3.fromRGB(0, 255, 150),
-    RedCard = Color3.fromRGB(255, 0, 0), BlueCard = Color3.fromRGB(0, 100, 255),
-    Search = Color3.fromRGB(255, 255, 255)
+    Armor = Color3.fromRGB(50, 150, 255), Money = Color3.fromRGB(255, 200, 0), Food = Color3.fromRGB(0, 255, 150)
 }
 
-local searchESPActive = false
-local searchObjects = {}
-
 -- ==========================================
--- ПЛАВАЮЩАЯ КНОПКА AIMBOT
--- ==========================================
-local floatBtn = Instance.new("TextButton")
-floatBtn.Size = UDim2.new(0, 60, 0, 60)
-floatBtn.Position = UDim2.new(0, 50, 0.5, -30)
-floatBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-floatBtn.Text = "AIM\nOFF"
-floatBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-floatBtn.Font = Enum.Font.GothamBold
-floatBtn.TextSize = 12
-floatBtn.Parent = playerGui
-Instance.new("UICorner", floatBtn).CornerRadius = UDim.new(1, 0)
-
-local draggingBtn, dragInputBtn, dragStartBtn, startPosBtn
-floatBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        draggingBtn = true; dragStartBtn = input.Position; startPosBtn = floatBtn.Position
-    end
-end)
-floatBtn.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInputBtn = input end
-end)
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInputBtn and draggingBtn then
-        local delta = input.Position - dragStartBtn
-        floatBtn.Position = UDim2.new(startPosBtn.X.Scale, startPosBtn.X.Offset + delta.X, startPosBtn.Y.Scale, startPosBtn.Y.Offset + delta.Y)
-    end
-end)
-UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then draggingBtn = false end
-end)
-
-local aimbotEnabled = false
-floatBtn.MouseButton1Click:Connect(function()
-    aimbotEnabled = not aimbotEnabled
-    if aimbotEnabled then
-        floatBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50); floatBtn.Text = "AIM\nON"
-    else
-        floatBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50); floatBtn.Text = "AIM\nOFF"
-    end
-end)
-
--- ==========================================
--- ГЛАВНОЕ МЕНЮ
+-- ГЛАВНЫЙ GUI
 -- ==========================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 420, 0, 40)
-mainFrame.Position = UDim2.new(0.5, -210, 0.1, 0)
+mainFrame.Size = UDim2.new(0, 400, 0, 40)
+mainFrame.Position = UDim2.new(0.5, -200, 0.1, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.Active = false
@@ -130,16 +79,17 @@ local isOpen = false
 arrowBtn.MouseButton1Click:Connect(function()
     isOpen = not isOpen
     if isOpen then
-        mainFrame.Size = UDim2.new(0, 420, 0, 520)
+        mainFrame.Size = UDim2.new(0, 400, 0, 420)
         arrowBtn.Text = "▲"
         contentFrame.Visible = true
     else
-        mainFrame.Size = UDim2.new(0, 420, 0, 40)
+        mainFrame.Size = UDim2.new(0, 400, 0, 40)
         arrowBtn.Text = "▼"
         contentFrame.Visible = false
     end
 end)
 
+-- Перетаскивание (Drag)
 local dragging, dragInput, dragStart, startPos
 titleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -159,20 +109,22 @@ UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
 end)
 
--- Вкладки
+-- ==========================================
+-- ВКЛАДКИ
+-- ==========================================
 local tabBar = Instance.new("Frame")
-tabBar.Size = UDim2.new(1, -10, 0, 30)
-tabBar.Position = UDim2.new(0, 5, 0, 10)
+tabBar.Size = UDim2.new(1, -20, 0, 30)
+tabBar.Position = UDim2.new(0, 10, 0, 10)
 tabBar.BackgroundTransparency = 1
 tabBar.Parent = contentFrame
 
 local tabLayout = Instance.new("UIListLayout", tabBar)
 tabLayout.FillDirection = Enum.FillDirection.Horizontal
-tabLayout.Padding = UDim.new(0, 5)
+tabLayout.Padding = UDim.new(0, 10)
 tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local pageContainer = Instance.new("Frame")
-pageContainer.Size = UDim2.new(1, -20, 1, -100)
+pageContainer.Size = UDim2.new(1, -20, 1, -60)
 pageContainer.Position = UDim2.new(0, 10, 0, 50)
 pageContainer.BackgroundTransparency = 1
 pageContainer.Parent = contentFrame
@@ -225,6 +177,7 @@ createTabButton("ESP", "ESP")
 createTabButton("Human", "HUMAN")
 createTabButton("Custom", "CUSTOM")
 
+-- Универсальная кнопка ВКЛ/ВЫКЛ
 local function createToggleButton(parent, labelText, initialVal, colorOn, callback)
     local isOn = initialVal
     local btn = Instance.new("TextButton")
@@ -233,7 +186,7 @@ local function createToggleButton(parent, labelText, initialVal, colorOn, callba
     btn.Text = labelText .. ": " .. (isOn and "ON" or "OFF")
     btn.TextColor3 = isOn and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 13
+    btn.TextSize = 14
     btn.Parent = parent
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     
@@ -247,102 +200,17 @@ local function createToggleButton(parent, labelText, initialVal, colorOn, callba
     return btn
 end
 
--- MAIN
+-- ==========================================
+-- 1. MAIN
+-- ==========================================
 createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(state) autoFarmBank = state end)
-createToggleButton(pageMain, "Показывать кнопку AIM", true, Color3.fromRGB(0, 150, 255), function(state) floatBtn.Visible = state end)
-
--- ESP
-createToggleButton(pageESP, "Оружие (В продаже)", false, ESP_COLORS.ShopWeapon, function(state) espToggles.ShopWeapon = state end)
-createToggleButton(pageESP, "Оружие (Подобрать)", false, ESP_COLORS.DropWeapon, function(state) espToggles.DropWeapon = state end)
-createToggleButton(pageESP, "Броня", false, ESP_COLORS.Armor, function(state) espToggles.Armor = state end)
-createToggleButton(pageESP, "Деньги / Сейфы", false, ESP_COLORS.Money, function(state) espToggles.Money = state end)
-createToggleButton(pageESP, "Еда", false, ESP_COLORS.Food, function(state) espToggles.Food = state end)
-createToggleButton(pageESP, "Красные карточки", false, ESP_COLORS.RedCard, function(state) espToggles.RedCard = state end)
-createToggleButton(pageESP, "Синие карточки", false, ESP_COLORS.BlueCard, function(state) espToggles.BlueCard = state end)
-
--- HUMAN
-local aimbotContainer = Instance.new("Frame")
-aimbotContainer.Size = UDim2.new(1, -10, 0, 35)
-aimbotContainer.BackgroundTransparency = 1
-aimbotContainer.ClipsDescendants = true
-aimbotContainer.Parent = pageHuman
-local aimbotLayout = Instance.new("UIListLayout", aimbotContainer)
-aimbotLayout.Padding = UDim.new(0, 8)
-
-local btnOpenAimbot = Instance.new("TextButton")
-btnOpenAimbot.Size = UDim2.new(1, 0, 0, 35)
-btnOpenAimbot.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-btnOpenAimbot.Text = "▼ Аимбот (Настройки)"
-btnOpenAimbot.TextColor3 = Color3.fromRGB(255, 255, 255)
-btnOpenAimbot.Font = Enum.Font.GothamBold
-btnOpenAimbot.TextSize = 14
-btnOpenAimbot.Parent = pageHuman
-Instance.new("UICorner", btnOpenAimbot).CornerRadius = UDim.new(0, 6)
-
-local aimbotOpen = false
-btnOpenAimbot.MouseButton1Click:Connect(function()
-    aimbotOpen = not aimbotOpen
-    if aimbotOpen then
-        aimbotContainer.Size = UDim2.new(1, -10, 0, 280)
-        btnOpenAimbot.Text = "▲ Аимбот (Настройки)"
-    else
-        aimbotContainer.Size = UDim2.new(1, -10, 0, 0)
-        btnOpenAimbot.Text = "▼ Аимбот (Настройки)"
-    end
-end)
-
-createToggleButton(aimbotContainer, "Включить Аимбот", false, Color3.fromRGB(50, 200, 50), function(state) 
-    aimbotEnabled = state
-    if state then floatBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50); floatBtn.Text = "AIM\nON"
-    else floatBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50); floatBtn.Text = "AIM\nOFF" end
-end)
-createToggleButton(aimbotContainer, "Проверка на стены", true, Color3.fromRGB(0, 150, 255), function(state) wallCheckEnabled = state end)
-createToggleButton(aimbotContainer, "Auto-Shoot (Авто-стрельба)", false, Color3.fromRGB(255, 100, 0), function(state) autoShootEnabled = state end)
-createToggleButton(aimbotContainer, "Silent Aim", false, Color3.fromRGB(255, 0, 0), function(state) silentAimEnabled = state end)
-
-local partFrame = Instance.new("Frame")
-partFrame.Size = UDim2.new(1, 0, 0, 60)
-partFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-partFrame.Parent = aimbotContainer
-Instance.new("UICorner", partFrame).CornerRadius = UDim.new(0, 6)
-
-local partLabel = Instance.new("TextLabel")
-partLabel.Size = UDim2.new(1, 0, 0, 20)
-partLabel.BackgroundTransparency = 1
-partLabel.Text = "Куда целиться:"
-partLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-partLabel.Font = Enum.Font.GothamBold
-partLabel.TextSize = 12
-partLabel.Parent = partFrame
-
-local function createPartBtn(text, partName, xPos)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 80, 0, 25)
-    btn.Position = UDim2.new(0, xPos, 0, 25)
-    btn.BackgroundColor3 = (targetPartName == partName) and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(20, 20, 25)
-    btn.Text = text
-    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 12
-    btn.Parent = partFrame
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
-    
-    btn.MouseButton1Click:Connect(function()
-        targetPartName = partName
-        for _, child in ipairs(partFrame:GetChildren()) do
-            if child:IsA("TextButton") then child.BackgroundColor3 = Color3.fromRGB(20, 20, 25) end
-        end
-        btn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-    end)
-end
-
-createPartBtn("Голова", "Head", 10)
-createPartBtn("Тело", "HumanoidRootPart", 95)
+createToggleButton(pageMain, "Aimbot (Поворот камеры)", false, Color3.fromRGB(255, 50, 50), function(state) aimbotEnabled = state end)
+createToggleButton(pageMain, "Auto-Shoot (Стрельба)", false, Color3.fromRGB(255, 100, 0), function(state) autoShootEnabled = state end)
 
 local radiusFrame = Instance.new("Frame")
-radiusFrame.Size = UDim2.new(1, 0, 0, 50)
+radiusFrame.Size = UDim2.new(1, -10, 0, 50)
 radiusFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-radiusFrame.Parent = aimbotContainer
+radiusFrame.Parent = pageMain
 Instance.new("UICorner", radiusFrame).CornerRadius = UDim.new(0, 6)
 
 local radiusLabel = Instance.new("TextLabel")
@@ -370,6 +238,18 @@ radiusBox.FocusLost:Connect(function()
     if val and val > 0 then fovRadius = val; radiusLabel.Text = "Радиус (FOV): " .. val else radiusBox.Text = tostring(fovRadius) end
 end)
 
+-- ==========================================
+-- 2. ESP
+-- ==========================================
+createToggleButton(pageESP, "Оружие (В продаже)", false, ESP_COLORS.ShopWeapon, function(state) espToggles.ShopWeapon = state end)
+createToggleButton(pageESP, "Оружие (Подобрать)", false, ESP_COLORS.DropWeapon, function(state) espToggles.DropWeapon = state end)
+createToggleButton(pageESP, "Броня", false, ESP_COLORS.Armor, function(state) espToggles.Armor = state end)
+createToggleButton(pageESP, "Деньги / Сейфы", false, ESP_COLORS.Money, function(state) espToggles.Money = state end)
+createToggleButton(pageESP, "Еда", false, ESP_COLORS.Food, function(state) espToggles.Food = state end)
+
+-- ==========================================
+-- 3. HUMAN (Скорость и Прыжок)
+-- ==========================================
 local function createStatSetting(parent, label, defaultVal, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, -10, 0, 35)
@@ -391,13 +271,15 @@ local function createStatSetting(parent, label, defaultVal, callback)
         if num then callback(num) else txtBox.Text = tostring(defaultVal) end
     end
     txtBox.FocusLost:Connect(apply)
-    txtBox.ReturnedPressedFromOnScreenKeyboard:Connect(apply)
+    txtBox.ReturnPressedFromOnScreenKeyboard:Connect(apply)
 end
 
 createStatSetting(pageHuman, "Скорость:", 16, function(val) desiredSpeed = val end)
 createStatSetting(pageHuman, "Прыжок:", 50, function(val) desiredJump = val end)
 
--- CUSTOM
+-- ==========================================
+-- 4. CUSTOM (Цвета)
+-- ==========================================
 local paletteFrame = Instance.new("Frame")
 paletteFrame.Size = UDim2.new(1, -10, 0, 80); paletteFrame.BackgroundTransparency = 1; paletteFrame.Parent = pageCustom
 local colors = {Color3.fromRGB(255, 50, 50), Color3.fromRGB(50, 255, 50), Color3.fromRGB(50, 150, 255), Color3.fromRGB(255, 200, 50), Color3.fromRGB(200, 50, 255), Color3.fromRGB(255, 255, 255)}
@@ -409,117 +291,10 @@ for i, color in ipairs(colors) do
     colorBtn.MouseButton1Click:Connect(function() mainStroke.Color = color; arrowBtn.TextColor3 = color; titleText.TextColor3 = color end)
 end
 
--- ==========================================
--- СТРОКА ПОИСКА И ПОДСКАЗКИ
--- ==========================================
-local searchBarFrame = Instance.new("Frame")
-searchBarFrame.Size = UDim2.new(1, -20, 0, 35)
-searchBarFrame.Position = UDim2.new(0, 10, 1, -45)
-searchBarFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-searchBarFrame.Parent = contentFrame
-Instance.new("UICorner", searchBarFrame).CornerRadius = UDim.new(0, 6)
-
-local searchBox = Instance.new("TextBox")
-searchBox.Size = UDim2.new(1, -40, 1, 0)
-searchBox.Position = UDim2.new(0, 10, 0, 0)
-searchBox.BackgroundTransparency = 1
-searchBox.PlaceholderText = "Поиск предмета (например: ak, card)"
-searchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
-searchBox.Text = ""
-searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-searchBox.Font = Enum.Font.GothamBold
-searchBox.TextSize = 13
-searchBox.TextXAlignment = Enum.TextXAlignment.Left
-searchBox.Parent = searchBarFrame
-
-local clearSearchBtn = Instance.new("TextButton")
-clearSearchBtn.Size = UDim2.new(0, 25, 0, 25)
-clearSearchBtn.Position = UDim2.new(1, -30, 0, 5)
-clearSearchBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-clearSearchBtn.Text = "X"
-clearSearchBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-clearSearchBtn.Font = Enum.Font.GothamBold
-clearSearchBtn.Parent = searchBarFrame
-Instance.new("UICorner", clearSearchBtn).CornerRadius = UDim.new(0, 4)
-
-local suggestionList = Instance.new("ScrollingFrame")
-suggestionList.Size = UDim2.new(1, -20, 0, 120)
-suggestionList.Position = UDim2.new(0, 10, 1, -170)
-suggestionList.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-suggestionList.BorderSizePixel = 0
-suggestionList.ScrollBarThickness = 2
-suggestionList.Visible = false
-suggestionList.Parent = contentFrame
-Instance.new("UICorner", suggestionList).CornerRadius = UDim.new(0, 6)
-local sugLayout = Instance.new("UIListLayout", suggestionList)
-sugLayout.Padding = UDim.new(0, 2)
-
-local function updateSuggestions()
-    for _, child in ipairs(suggestionList:GetChildren()) do
-        if child:IsA("TextButton") then child:Destroy() end
-    end
-    
-    local query = searchBox.Text:lower()
-    if query == "" then
-        suggestionList.Visible = false
-        return
-    end
-    
-    local foundNames = {}
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        if (obj:IsA("BasePart") or obj:IsA("Model")) and obj ~= screenGui then
-            local name = obj.Name
-            if name:lower():find(query) and not name:lower():find("wall") and not name:lower():find("mesh") then
-                if not foundNames[name] then foundNames[name] = obj end
-            end
-        end
-    end
-    
-    local count = 0
-    for name, obj in pairs(foundNames) do
-        count = count + 1
-        if count > 10 then break end
-        
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(1, -10, 0, 25)
-        btn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-        btn.Text = name
-        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        btn.Font = Enum.Font.Gotham
-        btn.TextSize = 12
-        btn.TextXAlignment = Enum.TextXAlignment.Left
-        btn.Parent = suggestionList
-        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
-        
-        btn.MouseButton1Click:Connect(function()
-            searchESPActive = true
-            searchObjects = {obj}
-            suggestionList.Visible = false
-            searchBox.Text = ""
-        end)
-    end
-    suggestionList.Visible = (count > 0)
-end
-
-searchBox:GetPropertyChangedSignal("Text"):Connect(function() updateSuggestions() end)
-searchBox.FocusLost:Connect(function(enterPressed)
-    if enterPressed then suggestionList.Visible = false end
-end)
-
-clearSearchBtn.MouseButton1Click:Connect(function()
-    searchBox.Text = ""
-    searchESPActive = false
-    searchObjects = {}
-    suggestionList.Visible = false
-    for p, d in pairs(tracked) do
-        if d.cat == "Search" then d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil end
-    end
-end)
-
 switchTab("main")
 
 -- ==========================================
--- ЛОГИКА РАБОТЫ (Аим, ESP, Автофарм)
+-- КРУГ FOV
 -- ==========================================
 local fovCircle = Instance.new("Frame")
 fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
@@ -535,29 +310,24 @@ circleStroke.Color = Color3.fromRGB(255, 50, 50)
 circleStroke.Thickness = 1
 circleStroke.Transparency = 0.3
 
+-- ==========================================
+-- ПОИСК ЦЕЛИ
+-- ==========================================
 local function getClosestTarget()
     local closestPlayer = nil
     local shortestDist = fovRadius
     local centerPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
+    
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= player and p.Character then
-            local targetPart = p.Character:FindFirstChild(targetPartName) or p.Character:FindFirstChild("Head")
-            if targetPart then
-                local screenPos, onScreen = camera:WorldToViewportPoint(targetPart.Position)
+            local head = p.Character:FindFirstChild("Head")
+            if head then
+                local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
                 if onScreen then
                     local dist = (Vector2.new(screenPos.X, screenPos.Y) - centerPos).Magnitude
                     if dist < shortestDist then
-                        if wallCheckEnabled then
-                            local rayOrigin = camera.CFrame.Position
-                            local rayDirection = (targetPart.Position - rayOrigin)
-                            local raycastParams = RaycastParams.new()
-                            raycastParams.FilterDescendantsInstances = {player.Character, p.Character}
-                            raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-                            local rayResult = Workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-                            if not rayResult then shortestDist = dist; closestPlayer = targetPart end
-                        else
-                            shortestDist = dist; closestPlayer = targetPart
-                        end
+                        shortestDist = dist
+                        closestPlayer = head
                     end
                 end
             end
@@ -566,17 +336,24 @@ local function getClosestTarget()
     return closestPlayer
 end
 
+-- ==========================================
+-- БЕЗОПАСНАЯ АВТО-СТРЕЛЬБА И AIMBOT
+-- ==========================================
 local lastShootTime = 0
+
 RunService.RenderStepped:Connect(function()
-    if aimbotEnabled or silentAimEnabled then
-        fovCircle.Visible = true; fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
+    if aimbotEnabled or autoShootEnabled then
+        fovCircle.Visible = true
+        fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
     else
         fovCircle.Visible = false
     end
 
     if aimbotEnabled then
         local target = getClosestTarget()
-        if target then camera.CFrame = CFrame.new(camera.CFrame.Position, target.Position) end
+        if target then
+            camera.CFrame = CFrame.new(camera.CFrame.Position, target.Position)
+        end
     end
 
     if autoShootEnabled and player.Character then
@@ -585,13 +362,18 @@ RunService.RenderStepped:Connect(function()
             local target = getClosestTarget()
             if target and tick() - lastShootTime > 0.1 then
                 lastShootTime = tick()
-                pcall(function() tool:Activate() end)
-                pcall(function() VirtualUser:CaptureController(); VirtualUser:ClickButton1(Vector2.new(0, 0)) end)
+                -- Безопасная попытка выстрела
+                pcall(function()
+                    tool:Activate()
+                end)
             end
         end
     end
 end)
 
+-- ==========================================
+-- ЦИКЛЫ (Скорость, Прыжок)
+-- ==========================================
 RunService.Heartbeat:Connect(function()
     if player.Character then
         local hum = player.Character:FindFirstChild("Humanoid")
@@ -602,7 +384,11 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
+-- ==========================================
+-- ЛОГИКА ESP И АВТО-ФАРМА
+-- ==========================================
 local espFolder = Instance.new("Folder", Workspace)
+
 local function createVisual(part, color, category)
     if tracked[part] then return end
     local hl = Instance.new("Highlight"); hl.FillColor = color; hl.FillTransparency = 0.5; hl.OutlineColor = color; hl.Adornee = part; hl.Parent = espFolder
@@ -614,13 +400,6 @@ end
 local function isItem(obj, category)
     local n = obj.Name:lower()
     if n:find("sign") or n:find("wall") or n:find("mesh") or n:find("part") or n:find("building") or n:find("floor") or n:find("tutorial") then return false end
-    
-    if category == "RedCard" then
-        return (n:find("red") and (n:find("card") or n:find("key") or n:find("access"))) or n == "redcard"
-    elseif category == "BlueCard" then
-        return (n:find("blue") and (n:find("card") or n:find("key") or n:find("access"))) or n == "bluecard"
-    end
-
     local isGun = n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle")
     if category == "ShopWeapon" then 
         return isGun and (obj:FindFirstChild("Price") or obj:FindFirstChild("Cost") or obj:FindFirstChildWhichIsA("NumberValue"))
@@ -638,7 +417,6 @@ local function isItem(obj, category)
     return false
 end
 
--- АВТО-ФАРМ
 task.spawn(function()
     while task.wait(0.3) do 
         if autoFarmBank and player.Character then
@@ -670,9 +448,9 @@ task.spawn(function()
                         hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
                         task.wait(0.05) 
                         local prompt = targetObj:FindFirstChildWhichIsA("ProximityPrompt", true)
-                        if prompt then fireproximityprompt(prompt) end
+                        if prompt then pcall(function() fireproximityprompt(prompt) end) end
                         local click = targetObj:FindFirstChildWhichIsA("ClickDetector", true)
-                        if click then fireclickdetector(click) end
+                        if click then pcall(function() fireclickdetector(click) end) end
                     end
                 end
             end
@@ -680,36 +458,23 @@ task.spawn(function()
     end
 end)
 
--- ОТРИСОВКА ESP И ПОИСКА
 task.spawn(function()
-    while task.wait(1) do
+    while task.wait(2) do
         local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-        if not hrp then continue end
-        
-        -- Очистка
-        for p, d in pairs(tracked) do
-            if not p.Parent or (d.cat ~= "Search" and not espToggles[d.cat]) or (d.cat == "Search" and not searchESPActive) then
-                d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil
-            end
-        end
-
-        -- Отрисовка кнопок ESP
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
-                local objPos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
-                if objPos and (objPos - hrp.Position).Magnitude < 500 then
-                    for cat, isOn in pairs(espToggles) do
-                        if isOn and isItem(obj, cat) then createVisual(obj, ESP_COLORS[cat], cat) end
-                    end
+        if hrp then
+            for p, d in pairs(tracked) do
+                if not p.Parent or not espToggles[d.cat] then
+                    d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil
                 end
             end
-        end
-
-        -- Отрисовка результатов поиска
-        if searchESPActive then
-            for _, obj in ipairs(searchObjects) do
-                if obj and obj.Parent and not tracked[obj] then
-                    createVisual(obj, ESP_COLORS.Search, "Search")
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
+                    local objPos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
+                    if objPos and (objPos - hrp.Position).Magnitude < 500 then
+                        for cat, isOn in pairs(espToggles) do
+                            if isOn and isItem(obj, cat) then createVisual(obj, ESP_COLORS[cat], cat) end
+                        end
+                    end
                 end
             end
         end
