@@ -540,7 +540,6 @@ local espFolder = Instance.new("Folder", Workspace)
 local function createVisual(part, color, category)
     if tracked[part] then return end
     
-    -- ЛИМИТ НА КОЛИЧЕСТВО ESP, ЧТОБЫ НЕ ЛАГАЛО
     local count = 0
     for _ in pairs(tracked) do count = count + 1 end
     if count > 40 then return end
@@ -605,37 +604,41 @@ task.spawn(function()
     end
 end)
 
--- УЛЬТРА-БЫСТРЫЙ РАДАР ESP (GetPartBoundsInRadius)
+-- УЛЬТРА-БЫСТРЫЙ РАДАР ESP
 task.spawn(function()
     while task.wait(1.5) do
         local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
         if hrp then
-            -- Очистка старых
             for p, d in pairs(tracked) do
                 if not p.Parent or (not espToggles[d.cat] and searchFilter == "") or (searchFilter ~= "" and not p.Name:lower():find(searchFilter)) then
                     d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil
                 end
             end
             
-            -- Магия оптимизации: сканируем только близлежащие объекты (радиус 250 метров)
             local partsInRadius = Workspace:GetPartBoundsInRadius(hrp.Position, 250)
-            local checkedModels = {}
+            local checkedObjects = {}
             
             for _, part in ipairs(partsInRadius) do
                 local targetObj = part
+                
                 -- Если деталь лежит внутри Модели или Инструмента, проверяем их
                 if part.Parent and (part.Parent:IsA("Tool") or part.Parent:IsA("Model")) then
                     targetObj = part.Parent
                 end
                 
-                if not tracked[targetObj] and not checkedModels[targetObj] then
-                    checkedModels[targetObj] = true
+                -- ЖЕСТКИЙ ИГНОР: Если это игрок, его конечности или UI - пропускаем
+                if targetObj:IsDescendantOf(player.Character) or targetObj:FindFirstAncestorOfClass("Player") or targetObj:FindFirstAncestorOfClass("PlayerGui") then
+                    continue
+                end
+
+                if not tracked[targetObj] and not checkedObjects[targetObj] then
+                    checkedObjects[targetObj] = true
                     local n = targetObj.Name:lower()
                     
-                    -- Блокируем мусор
                     if not (n:find("fake") or n:find("glass") or n:find("grass") or n:find("wall") or n:find("floor") or n:find("baseplate") or n:find("building") or n:find("sign") or n:find("mesh") or n:find("material") or n:find("tutorial")) then
                         
-                        -- Проверяем, можно ли предмет взять (Drop)
+                        -- Проверяем, является ли объект оружием (Tool) или имеет ручку
+                        local isWeaponObj = targetObj:IsA("Tool") or (targetObj:IsA("Model") and targetObj:FindFirstChild("Handle"))
                         local isPickable = targetObj:IsA("Tool") or targetObj:FindFirstChildWhichIsA("ClickDetector", true) or targetObj:FindFirstChildWhichIsA("ProximityPrompt", true)
                         
                         if searchFilter ~= "" then
@@ -643,33 +646,28 @@ task.spawn(function()
                         else
                             for cat, isOn in pairs(espToggles) do
                                 if isOn then
-                                    -- ЛОГИКА "ПОДОБРАТЬ" (Только то, что можно взять)
+                                    -- ЛОГИКА "ПОДОБРАТЬ" (Только физические инструменты)
                                     if cat == "DropWeapon" then
-                                        if isPickable and (n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon")) then
+                                        if isWeaponObj and isPickable and (n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon")) then
                                             createVisual(targetObj, ESP_COLORS.DropWeapon, cat)
                                         end
                                     
-                                    -- ЛОГИКА "КУПИТЬ" (Только то, что НЕЛЬЗЯ взять, но это пушка)
+                                    -- ЛОГИКА "КУПИТЬ" (Только то, что НЕ является Tool, но похоже на пушку)
                                     elseif cat == "ShopWeapon" then
-                                        if not isPickable and (n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle")) then
+                                        if not targetObj:IsA("Tool") and (n:find("gun") or n:find("ak") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle")) then
                                             createVisual(targetObj, ESP_COLORS.ShopWeapon, cat)
                                         end
                                     
-                                    -- КАРТОЧКИ (Только то, что можно взять)
                                     elseif cat == "BlueCard" then
                                         if isPickable and n:find("card") and n:find("blue") then createVisual(targetObj, ESP_COLORS.BlueCard, cat) end
                                     elseif cat == "RedCard" then
                                         if isPickable and n:find("card") and n:find("red") then createVisual(targetObj, ESP_COLORS.RedCard, cat) end
                                     elseif cat == "AllCards" then
                                         if isPickable and n:find("card") then createVisual(targetObj, ESP_COLORS.AllCards, cat) end
-                                    
-                                    -- ЕДА И БРОНЯ
                                     elseif cat == "Armor" then
                                         if isPickable and (n:find("armor") or n:find("vest") or n:find("helmet")) then createVisual(targetObj, ESP_COLORS.Armor, cat) end
                                     elseif cat == "Food" then
                                         if isPickable and (n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger")) then createVisual(targetObj, ESP_COLORS.Food, cat) end
-                                    
-                                    -- ДЕНЬГИ
                                     elseif cat == "Money" then
                                         if (n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n:find("cash") or n:find("money")) and not n:find("register") then
                                             createVisual(targetObj, ESP_COLORS.Money, cat)
