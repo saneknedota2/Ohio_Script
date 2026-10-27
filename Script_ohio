@@ -21,14 +21,14 @@ local isHealing = false
 local isSafeFarming = false
 local autoSafeFarm = false
 
-local searchRadius = 1000 -- Радиус поиска сейфов
-local lootRadius = 50     -- Радиус сбора лута (уменьшен до 50м)
+local searchRadius = 1000
+local lootRadius = 50
 
-local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, AllCards = false, PlayersESP = false }
+local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, AllCards = false, Jewel = false, PlayersESP = false }
 local ESP_COLORS = {
     ShopWeapon = Color3.fromRGB(255, 100, 100), DropWeapon = Color3.fromRGB(200, 0, 0),
     Armor = Color3.fromRGB(50, 150, 255), Money = Color3.fromRGB(255, 200, 0), Food = Color3.fromRGB(0, 255, 150),
-    AllCards = Color3.fromRGB(255, 0, 255), PlayersESP = Color3.fromRGB(255, 255, 255)
+    AllCards = Color3.fromRGB(255, 0, 255), Jewel = Color3.fromRGB(0, 255, 255), PlayersESP = Color3.fromRGB(255, 255, 255)
 }
 
 -- ==========================================
@@ -85,7 +85,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu (Anti-Cashier)"
+titleText.Text = "ROCKET | Ohio Menu (Jewel Farm)"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 15
@@ -251,7 +251,7 @@ end
 
 -- Вкладки
 createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(s) autoFarmBank = s end)
-createToggleButton(pageMain, "Авто-Взлом Сейфов", false, Color3.fromRGB(255, 150, 0), function(s) autoSafeFarm = s end)
+createToggleButton(pageMain, "Авто-Взлом Сейфов (Ювелирка)", false, Color3.fromRGB(255, 150, 0), function(s) autoSafeFarm = s end)
 
 createToggleButton(pageESP, "Игроки (Инфо)", false, ESP_COLORS.PlayersESP, function(s) espToggles.PlayersESP = s end)
 createToggleButton(pageESP, "Оружие (В продаже)", false, ESP_COLORS.ShopWeapon, function(s) espToggles.ShopWeapon = s end)
@@ -260,6 +260,7 @@ createToggleButton(pageESP, "Броня", false, ESP_COLORS.Armor, function(s) e
 createToggleButton(pageESP, "Деньги (Купюры)", false, ESP_COLORS.Money, function(s) espToggles.Money = s end)
 createToggleButton(pageESP, "Еда / Аптечки", false, ESP_COLORS.Food, function(s) espToggles.Food = s end)
 createToggleButton(pageESP, "Карточки", false, ESP_COLORS.AllCards, function(s) espToggles.AllCards = s end)
+createToggleButton(pageESP, "Драгоценности", false, ESP_COLORS.Jewel, function(s) espToggles.Jewel = s end)
 
 createStatSetting(pageHuman, "Скорость:", 16, function(val) desiredSpeed = val end)
 createStatSetting(pageHuman, "Прыжок:", 50, function(val) desiredJump = val end)
@@ -304,7 +305,7 @@ end)
 switchTab("main")
 
 -- ==========================================
--- 1. АВТО-ВЗЛОМ (ЖЕСТКИЙ ФИЛЬТР ОТ КАСС)
+-- 1. АВТО-ВЗЛОМ (ТОЛЬКО ДРАГОЦЕННОСТИ, ОРУЖИЕ И КАРТЫ)
 -- ==========================================
 local function doSafeFarm()
     local char = player.Character
@@ -355,10 +356,10 @@ local function doSafeFarm()
             notify("Сейф " .. i .. ": Жду 3 сек...")
             task.wait(3)
             
-            notify("Сейф " .. i .. ": Ищу лут...")
+            notify("Сейф " .. i .. ": Ищу драгоценности...")
             local emptyPasses = 0
             
-            while emptyPasses < 4 do
+            while emptyPasses < 5 do
                 local lootParts = Workspace:GetPartBoundsInRadius(targetPart.Position, lootRadius)
                 local found = false
                 
@@ -366,15 +367,16 @@ local function doSafeFarm()
                     local pName = lootPart.Name:lower()
                     local mName = lootPart.Parent and lootPart.Parent.Name:lower() or ""
                     
-                    -- ЖЕСТКИЙ БЕЛЫЙ СПИСОК (Только точные названия денег)
-                    local isCash = (pName == "bankcash" or pName == "cash" or pName == "money" or 
-                                    mName == "bankcash" or mName == "cash" or mName == "money")
+                    -- ИЩЕМ ДРАГОЦЕННОСТИ, ОРУЖИЕ И КАРТОЧКИ (Игнорируем мелочь)
+                    local isJewel = pName:find("jewel") or pName:find("gem") or pName:find("diamond") or pName:find("ring") or pName:find("gold") or pName:find("ruby") or pName:find("necklace") or pName:find("драгоцен") or pName:find("бриллиант") or pName:find("золото")
+                    local isWeapon = pName:find("gun") or pName:find("ak") or pName:find("m4") or pName:find("glock") or pName:find("deagle") or pName:find("pistol") or pName:find("сайга") or pName:find("пистолет") or pName:find("оружие")
+                    local isCard = pName:find("card") or pName:find("keycard")
                     
-                    -- ЖЕСТКИЙ ЧЕРНЫЙ СПИСОК (Кассы, стойки, банкоматы)
-                    local isJunk = pName:find("register") or pName:find("atm") or pName:find("cashier") or pName:find("stand") or pName:find("counter") or
-                                   mName:find("register") or mName:find("atm") or mName:find("cashier") or mName:find("stand") or mName:find("counter")
+                    local isValuable = isJewel or isWeapon or isCard or 
+                                       mName:find("jewel") or mName:find("gem") or mName:find("diamond") or mName:find("gold") or 
+                                       mName:find("gun") or mName:find("card")
 
-                    if isCash and not isJunk then
+                    if isValuable then
                         found = true
                         notify("Сбор: " .. pName)
                         pcall(function()
@@ -552,6 +554,9 @@ task.spawn(function()
                         local isGun = n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("deagle")
                         local isFood = n:find("food") or n:find("аптеч") or n:find("повяз") or n:find("medkit")
                         local isCard = n:find("card") or n:find("keycard")
+                        
+                        -- Драгоценности
+                        local isJewel = n:find("jewel") or n:find("gem") or n:find("diamond") or n:find("ring") or n:find("gold")
 
                         if espToggles.ShopWeapon and isGun and (obj:FindFirstChild("Price") or obj:FindFirstChildWhichIsA("NumberValue")) then
                             createItemVisual(obj, ESP_COLORS.ShopWeapon, "ShopWeapon"); count = count + 1
@@ -565,6 +570,8 @@ task.spawn(function()
                             createItemVisual(obj, ESP_COLORS.Armor, "Armor"); count = count + 1
                         elseif espToggles.AllCards and isCard then
                             createItemVisual(obj, ESP_COLORS.AllCards, "AllCards"); count = count + 1
+                        elseif espToggles.Jewel and isJewel then
+                            createItemVisual(obj, ESP_COLORS.Jewel, "Jewel"); count = count + 1
                         end
                     end
                 end
