@@ -224,7 +224,7 @@ local function createStatSetting(parent, label, defaultVal, callback)
         if num then callback(num) else txtBox.Text = tostring(defaultVal) end
     end
     txtBox.FocusLost:Connect(apply)
-    txtBox.ReturnPressedFromOnScreenKeyboard:Connect(apply)
+    txtBox.ReturnedPressedFromOnScreenKeyboard:Connect(apply)
 end
 
 -- ==========================================
@@ -235,7 +235,6 @@ createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color
 -- ==========================================
 -- 2. ESP (С поиском)
 -- ==========================================
--- Строка поиска
 local searchBox = Instance.new("TextBox")
 searchBox.Size = UDim2.new(1, -10, 0, 35)
 searchBox.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
@@ -248,7 +247,6 @@ searchBox.Parent = pageESP
 Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 6)
 Instance.new("UIStroke", searchBox).Color = Color3.fromRGB(0, 150, 255)
 
--- Выпадающий список подсказок
 local suggestionFrame = Instance.new("Frame")
 suggestionFrame.Size = UDim2.new(1, -10, 0, 0)
 suggestionFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
@@ -301,7 +299,6 @@ searchBox:GetPropertyChangedSignal("Text"):Connect(function()
     end
 end)
 
--- Остальные кнопки ESP
 createToggleButton(pageESP, "Оружие (В продаже)", false, ESP_COLORS.ShopWeapon, function(state) espToggles.ShopWeapon = state end)
 createToggleButton(pageESP, "Оружие (Подобрать)", false, ESP_COLORS.DropWeapon, function(state) espToggles.DropWeapon = state end)
 createToggleButton(pageESP, "Броня", false, ESP_COLORS.Armor, function(state) espToggles.Armor = state end)
@@ -314,7 +311,6 @@ createToggleButton(pageESP, "Еда", false, ESP_COLORS.Food, function(state) es
 createStatSetting(pageHuman, "Скорость:", 16, function(val) desiredSpeed = val end)
 createStatSetting(pageHuman, "Прыжок:", 50, function(val) desiredJump = val end)
 
--- Кнопка раскрытия настроек Аимбота
 local aimbotExpandBtn = Instance.new("TextButton")
 aimbotExpandBtn.Size = UDim2.new(1, -10, 0, 35)
 aimbotExpandBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
@@ -324,7 +320,6 @@ aimbotExpandBtn.Font = Enum.Font.GothamBold
 aimbotExpandBtn.Parent = pageHuman
 Instance.new("UICorner", aimbotExpandBtn).CornerRadius = UDim.new(0, 6)
 
--- Скрытый контейнер для настроек аимбота
 local aimbotSettings = Instance.new("Frame")
 aimbotSettings.Size = UDim2.new(1, -10, 0, 0)
 aimbotSettings.BackgroundTransparency = 1
@@ -333,7 +328,6 @@ aimbotSettings.Parent = pageHuman
 local aimLayout = Instance.new("UIListLayout", aimbotSettings)
 aimLayout.Padding = UDim.new(0, 8)
 
--- Заполняем настройки аимбота
 createToggleButton(aimbotSettings, "Aimbot (Поворот)", false, Color3.fromRGB(255, 50, 50), function(state) aimbotEnabled = state end)
 createToggleButton(aimbotSettings, "Auto-Shoot (Стрельба)", false, Color3.fromRGB(255, 100, 0), function(state) autoShootEnabled = state end)
 
@@ -368,13 +362,12 @@ radiusBox.FocusLost:Connect(function()
     if val and val > 0 then fovRadius = val; radiusLabel.Text = "Радиус (FOV): " .. val else radiusBox.Text = tostring(fovRadius) end
 end)
 
--- Логика раскрытия
 local aimbotOpen = false
 aimbotExpandBtn.MouseButton1Click:Connect(function()
     aimbotOpen = not aimbotOpen
     if aimbotOpen then
         aimbotExpandBtn.Text = "Настройки Aimbot ▲"
-        aimbotSettings.Size = UDim2.new(1, 0, 0, 160) -- Высота подстраивается
+        aimbotSettings.Size = UDim2.new(1, 0, 0, 160)
     else
         aimbotExpandBtn.Text = "Настройки Aimbot ▼"
         aimbotSettings.Size = UDim2.new(1, 0, 0, 0)
@@ -382,7 +375,7 @@ aimbotExpandBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ==========================================
--- 4. CUSTOM (Цвета и Толщина)
+-- 4. CUSTOM
 -- ==========================================
 local paletteFrame = Instance.new("Frame")
 paletteFrame.Size = UDim2.new(1, -10, 0, 80); paletteFrame.BackgroundTransparency = 1; paletteFrame.Parent = pageCustom
@@ -415,7 +408,7 @@ createThickBtn("Толстая", 5)
 switchTab("main")
 
 -- ==========================================
--- ОТРИСОВКА КРУГА АИМБОТА
+-- КРУГ АИМБОТА
 -- ==========================================
 local fovCircle = Instance.new("Frame")
 fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
@@ -512,24 +505,30 @@ local function createVisual(part, color, category)
     tracked[part] = {hl=hl, bb=bb, cat=category}
 end
 
+-- ИСПРАВЛЕННАЯ ФУНКЦИЯ isItem (Теперь видит и магазин, и выпавшее)
 local function isItem(obj, category)
     local n = obj.Name:lower()
+    
+    -- Игнорируем мусор
     if n:find("sign") or n:find("wall") or n:find("mesh") or n:find("part") or n:find("building") or n:find("floor") or n:find("tutorial") then return false end
     
-    -- Если есть поиск, ищем именно то, что ввели
+    -- Поиск по строке
     if searchFilter ~= "" then
         return n:find(searchFilter)
     end
 
-    local isGun = n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle")
+    local isGun = n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("weapon") or n:find("glock") or n:find("deagle")
+    local isArmor = n:find("armor") or n:find("vest") or n:find("helmet")
+
     if category == "ShopWeapon" then 
-        return isGun and (obj:FindFirstChild("Price") or obj:FindFirstChild("Cost") or obj:FindFirstChildWhichIsA("NumberValue"))
+        -- Оружие в магазине (Висит на стене, обычно это Model с названием пушки)
+        return isGun and not obj:FindFirstChild("Handle")
     elseif category == "DropWeapon" then 
-        local isPickable = obj:FindFirstChildWhichIsA("ClickDetector") or obj:FindFirstChildWhichIsA("ProximityPrompt")
-        local hasPrice = obj:FindFirstChild("Price") or obj:FindFirstChild("Cost")
-        return isGun and isPickable and not hasPrice
+        -- Выпавшее оружие (Обычно это Tool или модель с Handle)
+        return isGun and (obj:IsA("Tool") or obj:FindFirstChild("Handle"))
     elseif category == "Armor" then 
-        return (n:find("armor") or n:find("vest") or n:find("helmet")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop"))
+        -- Броня (Видит всё, где есть слова жилет/броня)
+        return isArmor
     elseif category == "Money" then 
         return (n:find("atm") or n:find("vault") or n:find("safe") or n:find("bankcash") or n:find("cash") or n:find("money")) and not n:find("register") and not n:find("tutorial")
     elseif category == "Food" then 
@@ -538,7 +537,7 @@ local function isItem(obj, category)
     return false
 end
 
--- АВТО-ФАРМ
+-- АВТО-ФАРМ (Оставлен как в старом коде)
 task.spawn(function()
     while task.wait(0.3) do 
         if autoFarmBank and player.Character then
@@ -595,7 +594,6 @@ task.spawn(function()
                     local objPos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
                     if objPos and (objPos - hrp.Position).Magnitude < 500 then
                         if searchFilter ~= "" then
-                            -- Если введен поиск, подсвечиваем ВСЕ найденные совпадения белым
                             if obj.Name:lower():find(searchFilter) then createVisual(obj, Color3.fromRGB(255, 255, 255), "Search") end
                         else
                             for cat, isOn in pairs(espToggles) do
