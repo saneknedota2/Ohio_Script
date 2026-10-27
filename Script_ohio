@@ -21,8 +21,8 @@ local isHealing = false
 local isSafeFarming = false
 local autoSafeFarm = false
 
-local searchRadius = 1000
-local lootRadius = 150
+local searchRadius = 1000 -- Радиус поиска сейфов
+local lootRadius = 50     -- Радиус сбора лута (уменьшен до 50м)
 
 local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, AllCards = false, PlayersESP = false }
 local ESP_COLORS = {
@@ -85,7 +85,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu (Debug Safe)"
+titleText.Text = "ROCKET | Ohio Menu (Anti-Cashier)"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 15
@@ -251,7 +251,7 @@ end
 
 -- Вкладки
 createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(s) autoFarmBank = s end)
-createToggleButton(pageMain, "Авто-Взлом Сейфов (Тест)", false, Color3.fromRGB(255, 150, 0), function(s) autoSafeFarm = s end)
+createToggleButton(pageMain, "Авто-Взлом Сейфов", false, Color3.fromRGB(255, 150, 0), function(s) autoSafeFarm = s end)
 
 createToggleButton(pageESP, "Игроки (Инфо)", false, ESP_COLORS.PlayersESP, function(s) espToggles.PlayersESP = s end)
 createToggleButton(pageESP, "Оружие (В продаже)", false, ESP_COLORS.ShopWeapon, function(s) espToggles.ShopWeapon = s end)
@@ -304,7 +304,7 @@ end)
 switchTab("main")
 
 -- ==========================================
--- 1. УМНЫЙ АВТО-ВЗЛОМ (С УВЕДОМЛЕНИЯМИ И ЖЕСТКОЙ ПАУЗОЙ)
+-- 1. АВТО-ВЗЛОМ (ЖЕСТКИЙ ФИЛЬТР ОТ КАСС)
 -- ==========================================
 local function doSafeFarm()
     local char = player.Character
@@ -331,21 +331,15 @@ local function doSafeFarm()
         end
     end
 
-    if #safes == 0 then
-        notify("Сейфы не найдены рядом!")
-        return
-    end
-
-    notify("Найдено сейфов: " .. #safes)
+    if #safes == 0 then return end
 
     for i, safe in ipairs(safes) do
         local targetPart = safe.PrimaryPart or safe:FindFirstChildWhichIsA("BasePart") or safe:FindFirstChild("Hitbox")
         if targetPart then
-            notify("Сейф " .. i .. ": Телепорт...")
+            notify("Сейф " .. i .. ": Телепорт и Взлом")
             pcall(function() hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 1, 2)) end)
             task.wait(0.5) 
             
-            notify("Сейф " .. i .. ": Взлом...")
             local prompt = safe:FindFirstChildWhichIsA("ProximityPrompt", true) or targetPart:FindFirstChildWhichIsA("ProximityPrompt", true)
             if prompt then
                 pcall(function() fireproximityprompt(prompt) end)
@@ -359,12 +353,11 @@ local function doSafeFarm()
             pcall(function() VirtualUser:KeyUp(Enum.KeyCode.E) end)
             
             notify("Сейф " .. i .. ": Жду 3 сек...")
-            task.wait(3) -- ЖЕСТКАЯ ПАУЗА
+            task.wait(3)
             
             notify("Сейф " .. i .. ": Ищу лут...")
             local emptyPasses = 0
             
-            -- Цикл сбора: собирает по 1 предмету, пока 4 раза подряд не найдет пустоту
             while emptyPasses < 4 do
                 local lootParts = Workspace:GetPartBoundsInRadius(targetPart.Position, lootRadius)
                 local found = false
@@ -373,8 +366,13 @@ local function doSafeFarm()
                     local pName = lootPart.Name:lower()
                     local mName = lootPart.Parent and lootPart.Parent.Name:lower() or ""
                     
-                    local isCash = pName:find("cash") or pName:find("money") or mName:find("cash") or mName:find("money")
-                    local isJunk = pName:find("atm") or pName:find("register") or pName:find("stand") or pName:find("door") or mName:find("safe") or mName:find("atm")
+                    -- ЖЕСТКИЙ БЕЛЫЙ СПИСОК (Только точные названия денег)
+                    local isCash = (pName == "bankcash" or pName == "cash" or pName == "money" or 
+                                    mName == "bankcash" or mName == "cash" or mName == "money")
+                    
+                    -- ЖЕСТКИЙ ЧЕРНЫЙ СПИСОК (Кассы, стойки, банкоматы)
+                    local isJunk = pName:find("register") or pName:find("atm") or pName:find("cashier") or pName:find("stand") or pName:find("counter") or
+                                   mName:find("register") or mName:find("atm") or mName:find("cashier") or mName:find("stand") or mName:find("counter")
 
                     if isCash and not isJunk then
                         found = true
@@ -406,26 +404,21 @@ local function doSafeFarm()
                 end
                 task.wait(0.5)
             end
-            notify("Сейф " .. i .. ": Готов")
         end
     end
 
     notify("Возврат на место...")
     task.wait(0.5)
     pcall(function() hrp.CFrame = startPos end)
-    notify("Все сейфы собраны!")
+    notify("Готово!")
 end
 
--- Цикл проверки для переключателя
 task.spawn(function()
     while task.wait(2) do 
         if autoSafeFarm and not isSafeFarming then
             isSafeFarming = true
             task.spawn(function()
-                local success, err = pcall(doSafeFarm)
-                if not success then
-                    notify("Ошибка скрипта: " .. tostring(err))
-                end
+                pcall(doSafeFarm)
                 isSafeFarming = false
             end)
         end
