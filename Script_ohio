@@ -85,7 +85,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu (Only Dropped Loot)"
+titleText.Text = "ROCKET | Ohio Menu (No Characters)"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 15
@@ -246,7 +246,7 @@ local function createStatSetting(parent, label, defaultVal, callback)
         if num then callback(num) else txtBox.Text = tostring(defaultVal) end
     end
     txtBox.FocusLost:Connect(apply)
-    txtBox.ReturnPressedFromOnScreenKeyboard:Connect(apply)
+    txtBox.ReturnedPressedFromOnScreenKeyboard:Connect(apply)
 end
 
 -- Вкладки
@@ -305,7 +305,7 @@ end)
 switchTab("main")
 
 -- ==========================================
--- 1. БЫСТРЫЙ АВТО-ВЗЛОМ (ТОЛЬКО ДРОП, БЕЗ ДЕНЕГ И ВИТРИН)
+-- 1. БЫСТРЫЙ АВТО-ВЗЛОМ (БЕЗ ЧАСТЕЙ ТЕЛА И ДЕНЕГ)
 -- ==========================================
 local function doSafeFarm()
     local char = player.Character
@@ -355,8 +355,8 @@ local function doSafeFarm()
             task.wait(1) -- Держим E
             pcall(function() VirtualUser:KeyUp(Enum.KeyCode.E) end)
             
-            notify("Сейф " .. i .. ": Жду дроп (2с)...")
-            task.wait(2) -- Ждем 2 секунды, чтобы камни упали
+            notify("Сейф " .. i .. ": Жду дроп (1.5с)...")
+            task.wait(1.5) 
             
             notify("Сейф " .. i .. ": Сбор")
             local emptyPasses = 0
@@ -371,6 +371,17 @@ local function doSafeFarm()
                     local pName = lootPart.Name:lower()
                     local mName = lootPart.Parent and lootPart.Parent.Name:lower() or ""
                     
+                    -- ЗАЩИТА ОТ ИГРОКОВ И NPC (Проверяем Humanoid)
+                    local character = lootPart.Parent
+                    local isCharacter = false
+                    if character then
+                        if character:FindFirstChild("Humanoid") then isCharacter = true end
+                        if character.Parent and character.Parent:FindFirstChild("Humanoid") then isCharacter = true end
+                    end
+                    
+                    -- Игнорируем части тела (на всякий случай)
+                    local isBodyPart = pName == "foot" or pName == "leg" or pName == "arm" or pName == "hand" or pName == "head" or pName == "torso" or pName == "leftfoot" or pName == "rightfoot"
+
                     -- ЖЕСТКИЙ ИГНОР (Таблички, стены, ДЕНЬГИ, витрины)
                     local isJunk = pName:find("safe") or pName:find("main") or pName:find("door") or pName:find("hitbox") or pName:find("part") or 
                                    pName:find("atm") or pName:find("register") or pName:find("stand") or pName:find("counter") or
@@ -378,16 +389,14 @@ local function doSafeFarm()
                                    pName:find("glass") or pName:find("display") or pName:find("case") or 
                                    mName:find("safe") or mName:find("cash") or mName:find("glass")
                     
-                    -- Если предмет прибит к полу (на витрине) — не трогаем.
-                    -- Дроп всегда не Anchored (падает).
                     local isDropped = not lootPart.Anchored or lootPart:IsA("Tool")
 
-                    -- Проверяем, можно ли подобрать
                     local isPickable = lootPart:IsA("Tool") or (lootPart.Parent and lootPart.Parent:IsA("Tool")) or
                                        lootPart:FindFirstChildWhichIsA("ClickDetector") or lootPart:FindFirstChildWhichIsA("ProximityPrompt") or
                                        (lootPart.Parent and (lootPart.Parent:FindFirstChildWhichIsA("ClickDetector") or lootPart.Parent:FindFirstChildWhichIsA("ProximityPrompt")))
 
-                    if isPickable and not isJunk and isDropped then
+                    -- Если это не игрок, не часть тела, не мусор и можно подобрать
+                    if not isCharacter and not isBodyPart and isPickable and not isJunk and isDropped then
                         found = true
                         notify("Сбор: " .. pName)
                         pcall(function()
