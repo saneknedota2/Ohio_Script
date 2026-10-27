@@ -10,16 +10,20 @@ local camera = Workspace.CurrentCamera
 local autoFarmBank = false
 local aimbotEnabled = false
 local autoShootEnabled = false
+local autoHealEnabled = false
+local healThreshold = 50
 local fovRadius = 150
 local desiredSpeed = 16
 local desiredJump = 50
 local tracked = {}
 local searchFilter = ""
+local isHealing = false
 
-local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false }
+local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, BlueCard = false, RedCard = false, AllCards = false }
 local ESP_COLORS = {
     ShopWeapon = Color3.fromRGB(255, 100, 100), DropWeapon = Color3.fromRGB(200, 0, 0),
-    Armor = Color3.fromRGB(50, 150, 255), Money = Color3.fromRGB(255, 200, 0), Food = Color3.fromRGB(0, 255, 150)
+    Armor = Color3.fromRGB(50, 150, 255), Money = Color3.fromRGB(255, 200, 0), Food = Color3.fromRGB(0, 255, 150),
+    BlueCard = Color3.fromRGB(0, 255, 255), RedCard = Color3.fromRGB(255, 0, 0), AllCards = Color3.fromRGB(255, 0, 255)
 }
 
 -- ==========================================
@@ -233,12 +237,12 @@ end
 createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(state) autoFarmBank = state end)
 
 -- ==========================================
--- 2. ESP (С поиском)
+-- 2. ESP
 -- ==========================================
 local searchBox = Instance.new("TextBox")
 searchBox.Size = UDim2.new(1, -10, 0, 35)
 searchBox.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-searchBox.PlaceholderText = "Поиск предмета (например, ak47)..."
+searchBox.PlaceholderText = "Поиск предмета..."
 searchBox.Text = ""
 searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 searchBox.Font = Enum.Font.Gotham
@@ -256,7 +260,7 @@ Instance.new("UICorner", suggestionFrame).CornerRadius = UDim.new(0, 6)
 local sugLayout = Instance.new("UIListLayout", suggestionFrame)
 sugLayout.Padding = UDim.new(0, 2)
 
-local knownItems = {"ak47", "m4", "pistol", "shotgun", "gun", "cash", "money", "atm", "safe", "vault", "vest", "armor", "helmet", "medkit", "apple", "burger"}
+local knownItems = {"ak47", "m4", "pistol", "shotgun", "gun", "cash", "money", "atm", "safe", "vault", "vest", "armor", "helmet", "medkit", "apple", "burger", "card", "keycard"}
 
 searchBox:GetPropertyChangedSignal("Text"):Connect(function()
     local txt = searchBox.Text:lower()
@@ -305,11 +309,19 @@ createToggleButton(pageESP, "Броня", false, ESP_COLORS.Armor, function(stat
 createToggleButton(pageESP, "Деньги / Сейфы", false, ESP_COLORS.Money, function(state) espToggles.Money = state end)
 createToggleButton(pageESP, "Еда", false, ESP_COLORS.Food, function(state) espToggles.Food = state end)
 
+createToggleButton(pageESP, "Синяя карточка", false, ESP_COLORS.BlueCard, function(state) espToggles.BlueCard = state end)
+createToggleButton(pageESP, "Красная карточка", false, ESP_COLORS.RedCard, function(state) espToggles.RedCard = state end)
+createToggleButton(pageESP, "Все карточки", false, ESP_COLORS.AllCards, function(state) espToggles.AllCards = state end)
+
 -- ==========================================
--- 3. HUMAN (Скорость, Прыжок, Аимбот)
+-- 3. HUMAN
 -- ==========================================
 createStatSetting(pageHuman, "Скорость:", 16, function(val) desiredSpeed = val end)
 createStatSetting(pageHuman, "Прыжок:", 50, function(val) desiredJump = val end)
+
+-- АВТО-ХИЛ
+createStatSetting(pageHuman, "Порог ХП для хила:", 50, function(val) healThreshold = val end)
+createToggleButton(pageHuman, "Авто-Хил (Аптечки/Бинты)", false, Color3.fromRGB(0, 200, 100), function(state) autoHealEnabled = state end)
 
 local aimbotExpandBtn = Instance.new("TextButton")
 aimbotExpandBtn.Size = UDim2.new(1, -10, 0, 35)
@@ -375,7 +387,7 @@ aimbotExpandBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ==========================================
--- 4. CUSTOM (Цвета и Толщина)
+-- 4. CUSTOM
 -- ==========================================
 local paletteFrame = Instance.new("Frame")
 paletteFrame.Size = UDim2.new(1, -10, 0, 80); paletteFrame.BackgroundTransparency = 1; paletteFrame.Parent = pageCustom
@@ -493,7 +505,57 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ==========================================
--- ИСПРАВЛЕННАЯ ЛОГИКА ESP И АВТО-ФАРМА
+-- АВТО-ХИЛ (Использование аптечек из рюкзака)
+-- ==========================================
+task.spawn(function()
+    while task.wait(1) do -- Проверяем раз в секунду
+        if autoHealEnabled and player.Character and not isHealing then
+            local hum = player.Character:FindFirstChild("Humanoid")
+            if hum and hum.Health > 0 and hum.Health < healThreshold then
+                local backpack = player:FindFirstChild("Backpack")
+                if backpack then
+                    for _, item in ipairs(backpack:GetChildren()) do
+                        if item:IsA("Tool") then
+                            local n = item.Name:lower()
+                            -- Ищем аптечки, бинты, шприцы и т.д.
+                            if n:find("med") or n:find("bandage") or n:find("health") or n:find("heal") or n:find("бинт") or n:find("аптеч") then
+                                isHealing = true
+                                
+                                -- Запоминаем, что было в руках
+                                local currentTool = player.Character:FindFirstChildWhichIsA("Tool")
+                                
+                                -- Берем аптечку в руки
+                                item.Parent = player.Character
+                                task.wait(0.1) 
+                                
+                                -- Используем
+                                pcall(function() item:Activate() end)
+                                task.wait(0.2) 
+                                
+                                -- Убираем аптечку обратно в рюкзак
+                                if item.Parent == player.Character then
+                                    item.Parent = backpack
+                                end
+                                
+                                -- Возвращаем оружие в руки (если было)
+                                task.wait(0.1)
+                                if currentTool and currentTool.Parent == backpack then
+                                    currentTool.Parent = player.Character
+                                end
+                                
+                                isHealing = false
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- ЛОГИКА ESP И АВТО-ФАРМА
 -- ==========================================
 local espFolder = Instance.new("Folder", Workspace)
 
@@ -501,27 +563,22 @@ local function createVisual(part, color, category)
     if tracked[part] then return end
     local hl = Instance.new("Highlight"); hl.FillColor = color; hl.FillTransparency = 0.5; hl.OutlineColor = color; hl.Adornee = part; hl.Parent = espFolder
     local bb = Instance.new("BillboardGui"); bb.Size = UDim2.new(0, 150, 0, 20); bb.AlwaysOnTop = true; bb.Adornee = part; bb.Parent = espFolder
-    
-    -- ОБРЕЗАЕМ ТЕКСТ, ЧТОБЫ НЕ БЫЛО КРАСНЫХ ПОЛОС
     local lbl = Instance.new("TextLabel"); lbl.Size = UDim2.new(1, 0, 1, 0); lbl.BackgroundTransparency = 1; lbl.TextColor3 = color; lbl.Text = string.sub(part.Name, 1, 15); lbl.Parent = bb
-    
     tracked[part] = {hl=hl, bb=bb, cat=category}
 end
 
--- УМНЫЙ ФИЛЬТР (Без магазинов и банкоматов)
 local function isItem(obj, category)
     local n = obj.Name:lower()
-    if #obj.Name > 25 then return false end -- Игнорируем длинные имена
+    if #obj.Name > 25 then return false end
     
-    -- Жестко игнорируем мусор, магазины, шкафы, двери
-    if n:find("store") or n:find("locker") or n:find("shop") or n:find("keypad") or n:find("door") or n:find("sign") or n:find("wall") or n:find("mesh") or n:find("part") or n:find("building") or n:find("floor") or n:find("tutorial") then return false end
+    if n:find("sign") or n:find("wall") or n:find("mesh") or n:find("part") or n:find("building") or n:find("floor") or n:find("tutorial") or n:find("store") or n:find("locker") or n:find("shop") or n:find("door") then return false end
     
-    -- Если есть поиск, ищем именно то, что ввели
     if searchFilter ~= "" then
         return n:find(searchFilter)
     end
 
-    local isGun = n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("deagle") or n:find("glock") or n:find("m1911") or n:find("сайга")
+    local isGun = n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("shotgun") or n:find("rifle") or n:find("deagle") or n:find("glock")
+    local isCard = n:find("card") or n:find("keycard")
     
     if category == "ShopWeapon" then 
         return isGun and (obj:FindFirstChild("Price") or obj:FindFirstChild("Cost") or obj:FindFirstChildWhichIsA("NumberValue"))
@@ -532,15 +589,20 @@ local function isItem(obj, category)
     elseif category == "Armor" then 
         return (n:find("armor") or n:find("vest") or n:find("helmet")) and not n:find("room")
     elseif category == "Money" then 
-        -- ТОЛЬКО КУПЮРЫ (Убрали банкоматы и сейфы)
         return (n == "cash" or n == "money" or n:find("bankcash") or n:find("moneydrop")) and not n:find("atm")
     elseif category == "Food" then 
         return (n:find("food") or n:find("medkit") or n:find("bandage") or n:find("apple") or n:find("burger")) and (obj:FindFirstChildWhichIsA("ClickDetector") or n:find("shop")) 
+    elseif category == "BlueCard" then
+        return isCard and (n:find("blue") or n:find("cyan"))
+    elseif category == "RedCard" then
+        return isCard and (n:find("red") or n:find("crimson"))
+    elseif category == "AllCards" then
+        return isCard
     end
     return false
 end
 
--- АВТО-ФАРМ (Летит только к купюрам)
+-- АВТО-ФАРМ
 task.spawn(function()
     while task.wait(0.3) do 
         if autoFarmBank and player.Character then
@@ -582,7 +644,7 @@ task.spawn(function()
     end
 end)
 
--- Отрисовка ESP (С защитой от игроков и мусора)
+-- Отрисовка ESP
 task.spawn(function()
     while task.wait(2) do
         local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
@@ -592,24 +654,36 @@ task.spawn(function()
                     d.hl:Destroy(); d.bb:Destroy(); tracked[p] = nil
                 end
             end
+            
+            local objectCount = 0 
+            local checkCount = 0
+            
             for _, obj in ipairs(Workspace:GetDescendants()) do
+                checkCount = checkCount + 1
+                if checkCount % 100 == 0 then task.wait() end
+                
                 if (obj:IsA("BasePart") or obj:IsA("Model")) and not tracked[obj] and obj ~= espFolder then
-                    
-                    -- ЖЕСТКИЙ ИГНОР ИГРОКОВ
                     local isPlayer = Players:GetPlayerFromCharacter(obj) or (obj.Parent and Players:GetPlayerFromCharacter(obj.Parent))
                     if isPlayer or obj:IsDescendantOf(player.Character) then continue end
                     
                     local objPos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
                     if objPos and (objPos - hrp.Position).Magnitude < 500 then
                         if searchFilter ~= "" then
-                            if obj.Name:lower():find(searchFilter) then createVisual(obj, Color3.fromRGB(255, 255, 255), "Search") end
+                            if obj.Name:lower():find(searchFilter) then 
+                                createVisual(obj, Color3.fromRGB(255, 255, 255), "Search") 
+                                objectCount = objectCount + 1
+                            end
                         else
                             for cat, isOn in pairs(espToggles) do
-                                if isOn and isItem(obj, cat) then createVisual(obj, ESP_COLORS[cat], cat) end
+                                if isOn and isItem(obj, cat) then 
+                                    createVisual(obj, ESP_COLORS[cat], cat) 
+                                    objectCount = objectCount + 1
+                                end
                             end
                         end
                     end
                 end
+                if objectCount > 40 then break end
             end
         end
     end
