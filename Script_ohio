@@ -18,6 +18,11 @@ local autoHealEnabled = false
 local healThreshold = 65
 local fovRadius = 150
 local isHealing = false
+local isSafeFarming = false
+local autoSafeFarm = false -- Переменная для переключателя
+
+-- РАДИУС ПОИСКА (500 МЕТРОВ)
+local searchRadius = 500 
 
 local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, AllCards = false, PlayersESP = false }
 local ESP_COLORS = {
@@ -33,7 +38,7 @@ local screenGui = Instance.new("ScreenGui")
 screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
--- Функция уведомлений (чтобы видеть, что делает скрипт)
+-- Уведомления
 local notifyGui = Instance.new("ScreenGui")
 notifyGui.ResetOnSpawn = false
 notifyGui.Parent = playerGui
@@ -78,7 +83,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu"
+titleText.Text = "ROCKET | Ohio Menu (500m)"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 15
@@ -249,14 +254,8 @@ end
 -- ==========================================
 createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(s) autoFarmBank = s end)
 
-local safeFarmBtn = Instance.new("TextButton")
-safeFarmBtn.Size = UDim2.new(1, -10, 0, 35)
-safeFarmBtn.BackgroundColor3 = Color3.fromRGB(255, 150, 0)
-safeFarmBtn.Text = "ВЗЛОМАТЬ ВСЕ СЕЙФЫ"
-safeFarmBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-safeFarmBtn.Font = Enum.Font.GothamBold
-safeFarmBtn.Parent = pageMain
-Instance.new("UICorner", safeFarmBtn).CornerRadius = UDim.new(0, 6)
+-- НОВЫЙ ПЕРЕКЛЮЧАТЕЛЬ ДЛЯ СЕЙФОВ
+createToggleButton(pageMain, "Авто-Взлом Сейфов (500м)", false, Color3.fromRGB(255, 150, 0), function(s) autoSafeFarm = s end)
 
 -- ESP
 createToggleButton(pageESP, "Игроки (Инфо)", false, ESP_COLORS.PlayersESP, function(s) espToggles.PlayersESP = s end)
@@ -273,7 +272,7 @@ createStatSetting(pageHuman, "Прыжок:", 50, function(val) desiredJump = va
 createStatSetting(pageHuman, "Порог ХП (Хил):", 65, function(val) healThreshold = val end)
 createToggleButton(pageHuman, "Авто-Хил (Аптечки)", false, Color3.fromRGB(0, 200, 100), function(s) autoHealEnabled = s end)
 
--- Раскрывающийся Аимбот
+-- Аимбот
 local aimbotExpandBtn = Instance.new("TextButton")
 aimbotExpandBtn.Size = UDim2.new(1, -10, 0, 35)
 aimbotExpandBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
@@ -311,19 +310,21 @@ end)
 switchTab("main")
 
 -- ==========================================
--- 1. УМНЫЙ ВЗЛОМ СЕЙФОВ (С УВЕДОМЛЕНИЯМИ)
+-- 1. АВТОМАТИЧЕСКИЙ ВЗЛОМ СЕЙФОВ И СБОР ЛУТА
 -- ==========================================
-safeFarmBtn.MouseButton1Click:Connect(function()
+local function doSafeFarm()
+    if isSafeFarming then return end
+    isSafeFarming = true
+
     local char = player.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+    if not hrp then isSafeFarming = false; return end
 
     local startPos = hrp.CFrame
-    notify("Ищу сейфы рядом...")
+    -- notify("Ищу сейфы в радиусе 500м...") -- Убрал уведомление, чтобы не спамило
 
     local safes = {}
-    -- Ищем только в радиусе 100 метров
-    local parts = Workspace:GetPartBoundsInRadius(hrp.Position, 100)
+    local parts = Workspace:GetPartBoundsInRadius(hrp.Position, searchRadius)
     local checked = {}
 
     for _, part in ipairs(parts) do
@@ -337,47 +338,77 @@ safeFarmBtn.MouseButton1Click:Connect(function()
         end
     end
 
-    if #safes == 0 then
-        notify("Сейфы не найдены рядом! Подойди ближе.")
-        return
-    end
-
-    notify("Найдено сейфов: " .. #safes)
-
-    for i, safe in ipairs(safes) do
-        local targetPart = safe.PrimaryPart or safe:FindFirstChildWhichIsA("BasePart") or safe:FindFirstChild("Hitbox")
-        if targetPart then
-            notify("Телепорт к сейфу " .. i)
-            pcall(function()
-                -- Телепорт
-                hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 2, 0))
-                task.wait(0.5) -- Даем античиту привыкнуть
-                
-                -- Взаимодействие
-                local prompt = safe:FindFirstChildWhichIsA("ProximityPrompt", true) or targetPart:FindFirstChildWhichIsA("ProximityPrompt", true)
-                if prompt then
-                    fireproximityprompt(prompt)
-                    VirtualUser:CaptureController()
-                    VirtualUser:KeyDown(Enum.KeyCode.E)
-                    task.wait(1.2) -- Держим E
-                    VirtualUser:KeyUp(Enum.KeyCode.E)
-                else
-                    -- Если нет ProximityPrompt, пробуем кликнуть
-                    local click = safe:FindFirstChildWhichIsA("ClickDetector", true)
-                    if click then fireclickdetector(click) end
-                end
-                task.wait(0.5)
-            end)
+    if #safes > 0 then
+        notify("Найдено сейфов: " .. #safes)
+        for i, safe in ipairs(safes) do
+            local targetPart = safe.PrimaryPart or safe:FindFirstChildWhichIsA("BasePart") or safe:FindFirstChild("Hitbox")
+            if targetPart then
+                pcall(function()
+                    -- 1. Телепорт к сейфу
+                    hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 2, 0))
+                    task.wait(0.4) 
+                    
+                    -- 2. Взлом
+                    local prompt = safe:FindFirstChildWhichIsA("ProximityPrompt", true) or targetPart:FindFirstChildWhichIsA("ProximityPrompt", true)
+                    if prompt then
+                        fireproximityprompt(prompt)
+                        VirtualUser:CaptureController()
+                        VirtualUser:KeyDown(Enum.KeyCode.E)
+                        task.wait(1.2) 
+                        VirtualUser:KeyUp(Enum.KeyCode.E)
+                    else
+                        local click = safe:FindFirstChildWhichIsA("ClickDetector", true)
+                        if click then fireclickdetector(click) end
+                    end
+                    task.wait(0.5)
+                    
+                    -- 3. СБОР ЛУТА
+                    local lootParts = Workspace:GetPartBoundsInRadius(targetPart.Position, searchRadius)
+                    for _, lootPart in ipairs(lootParts) do
+                        local lootObj = lootPart.Parent
+                        local lootName = lootPart.Name:lower()
+                        
+                        if lootName:find("cash") or lootName:find("money") or lootName:find("card") or lootName:find("key") or lootName:find("gun") or lootName:find("weapon") then
+                            if not (lootName:find("atm") or lootName:find("register") or lootName:find("safe")) then
+                                pcall(function()
+                                    hrp.CFrame = CFrame.new(lootPart.Position + Vector3.new(0, 2, 0))
+                                    task.wait(0.15) 
+                                    
+                                    local lootPrompt = lootObj:FindFirstChildWhichIsA("ProximityPrompt", true) or lootPart:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                    if lootPrompt then fireproximityprompt(lootPrompt) end
+                                    
+                                    local lootClick = lootObj:FindFirstChildWhichIsA("ClickDetector", true) or lootPart:FindFirstChildWhichIsA("ClickDetector", true)
+                                    if lootClick then fireclickdetector(lootClick) end
+                                    
+                                    if firetouchinterest and lootPart:IsA("BasePart") then
+                                        firetouchinterest(hrp, lootPart, 0)
+                                        task.wait(0.05)
+                                        firetouchinterest(hrp, lootPart, 1)
+                                    end
+                                end)
+                            end
+                        end
+                    end
+                end)
+            end
         end
     end
 
-    notify("Возврат на место...")
+    -- Возврат на место
     task.wait(0.5)
-    pcall(function()
-        hrp.CFrame = startPos
-    end)
-    notify("Готово!")
+    pcall(function() hrp.CFrame = startPos end)
+    isSafeFarming = false
+end
+
+-- Цикл проверки для переключателя
+task.spawn(function()
+    while task.wait(2) do -- Проверяем каждые 2 секунды
+        if autoSafeFarm and not isSafeFarming then
+            doSafeFarm()
+        end
+    end
 end)
+
 
 -- ==========================================
 -- 2. ESP НА ИГРОКОВ (С ИНФОЙ)
