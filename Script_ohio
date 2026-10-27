@@ -23,7 +23,7 @@ local autoSafeFarm = false
 
 -- ТВОИ НАСТРОЙКИ РАДИУСА
 local searchRadius = 1000 -- Сейфы ищем в 1000 метрах
-local lootRadius = 25     -- Лут собираем в 25 метрах
+local lootRadius = 30     -- Лут собираем в 30 метрах
 
 local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, AllCards = false, Jewel = false, PlayersESP = false }
 local ESP_COLORS = {
@@ -86,7 +86,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu (Jewel Fix)"
+titleText.Text = "ROCKET | Ohio Menu (Jewel Fix 2)"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 15
@@ -252,7 +252,7 @@ end
 
 -- Вкладки
 createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(s) autoFarmBank = s end)
-createToggleButton(pageMain, "Авто-Взлом Сейфов (Ювелирка)", false, Color3.fromRGB(255, 150, 0), function(s) autoSafeFarm = s end)
+createToggleButton(pageMain, "Авто-Взлом Сейфов", false, Color3.fromRGB(255, 150, 0), function(s) autoSafeFarm = s end)
 
 createToggleButton(pageESP, "Игроки (Инфо)", false, ESP_COLORS.PlayersESP, function(s) espToggles.PlayersESP = s end)
 createToggleButton(pageESP, "Оружие (В продаже)", false, ESP_COLORS.ShopWeapon, function(s) espToggles.ShopWeapon = s end)
@@ -306,7 +306,7 @@ end)
 switchTab("main")
 
 -- ==========================================
--- 1. АВТО-ВЗЛОМ (СБОР В 25М, СЕЙФЫ В 1000М)
+-- 1. АВТО-ВЗЛОМ (ИСПРАВЛЕНЫ ТАБЛИЧКИ И ВЫКЛЮЧЕНИЕ)
 -- ==========================================
 local function doSafeFarm()
     local char = player.Character
@@ -336,6 +336,9 @@ local function doSafeFarm()
     if #safes == 0 then return end
 
     for i, safe in ipairs(safes) do
+        -- Проверка: если выключили, прекращаем
+        if not autoSafeFarm then break end
+
         local targetPart = safe.PrimaryPart or safe:FindFirstChildWhichIsA("BasePart") or safe:FindFirstChild("Hitbox")
         if targetPart then
             notify("Сейф " .. i .. ": Телепорт и Взлом")
@@ -357,10 +360,13 @@ local function doSafeFarm()
             notify("Сейф " .. i .. ": Жду 3 сек...")
             task.wait(3)
             
-            notify("Сейф " .. i .. ": Сбор лута (25м)...")
+            notify("Сейф " .. i .. ": Сбор лута (30м)...")
             local emptyPasses = 0
             
             while emptyPasses < 4 do
+                -- Проверка: если выключили, прекращаем
+                if not autoSafeFarm then break end
+
                 local lootParts = Workspace:GetPartBoundsInRadius(targetPart.Position, lootRadius)
                 local found = false
                 
@@ -368,18 +374,17 @@ local function doSafeFarm()
                     local pName = lootPart.Name:lower()
                     local mName = lootPart.Parent and lootPart.Parent.Name:lower() or ""
                     
-                    -- ЖЕСТКИЙ ИГНОР САМОГО СЕЙФА И КАСС
-                    local isJunk = pName:find("safe") or pName:find("main") or pName:find("door") or pName:find("hitbox") or pName:find("part") or pName:find("atm") or pName:find("register") or pName:find("stand") or pName:find("counter") or mName:find("safe")
+                    -- ЖЕСТКИЙ ИГНОР ТАБЛИЧЕК, ТЕКСТУР И КАСС
+                    local isJunk = pName:find("safe") or pName:find("main") or pName:find("door") or pName:find("hitbox") or pName:find("part") or 
+                                   pName:find("atm") or pName:find("register") or pName:find("stand") or pName:find("counter") or
+                                   pName:find("meshes") or pName:find("material") or mName:find("safe") or mName:find("meshes")
                     
                     -- То, что нам нужно
                     local isJewel = pName:find("jewel") or pName:find("gem") or pName:find("diamond") or pName:find("ring") or pName:find("gold") or pName:find("ruby") or pName:find("necklace")
                     local isWeapon = pName:find("gun") or pName:find("ak") or pName:find("m4") or pName:find("glock") or pName:find("deagle") or pName:find("pistol") or pName:find("сайга") or pName:find("пистолет") or pName:find("оружие")
                     local isCard = pName:find("card") or pName:find("keycard")
                     
-                    -- Предмет должен быть внутри Tool или быть ценной деталью
-                    local isTool = lootPart:IsA("Tool") or (lootPart.Parent and lootPart.Parent:IsA("Tool"))
-                    
-                    local isValuable = isJewel or isWeapon or isCard or isTool
+                    local isValuable = isJewel or isWeapon or isCard
 
                     if isValuable and not isJunk then
                         found = true
