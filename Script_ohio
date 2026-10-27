@@ -19,10 +19,10 @@ local healThreshold = 65
 local fovRadius = 150
 local isHealing = false
 local isSafeFarming = false
-local autoSafeFarm = false -- Переменная для переключателя
+local autoSafeFarm = false
 
--- РАДИУС ПОИСКА (500 МЕТРОВ)
-local searchRadius = 500 
+local searchRadius = 500 -- Радиус поиска сейфов
+local lootRadius = 25    -- Радиус сбора лута (вокруг сейфа)
 
 local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, AllCards = false, PlayersESP = false }
 local ESP_COLORS = {
@@ -83,7 +83,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu (500m)"
+titleText.Text = "ROCKET | Ohio Menu"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 15
@@ -254,7 +254,7 @@ end
 -- ==========================================
 createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(s) autoFarmBank = s end)
 
--- НОВЫЙ ПЕРЕКЛЮЧАТЕЛЬ ДЛЯ СЕЙФОВ
+-- ПЕРЕКЛЮЧАТЕЛЬ СЕЙФОВ
 createToggleButton(pageMain, "Авто-Взлом Сейфов (500м)", false, Color3.fromRGB(255, 150, 0), function(s) autoSafeFarm = s end)
 
 -- ESP
@@ -310,7 +310,7 @@ end)
 switchTab("main")
 
 -- ==========================================
--- 1. АВТОМАТИЧЕСКИЙ ВЗЛОМ СЕЙФОВ И СБОР ЛУТА
+-- 1. УМНЫЙ АВТО-ВЗЛОМ СЕЙФОВ И СБОР ЛУТА
 -- ==========================================
 local function doSafeFarm()
     if isSafeFarming then return end
@@ -321,9 +321,9 @@ local function doSafeFarm()
     if not hrp then isSafeFarming = false; return end
 
     local startPos = hrp.CFrame
-    -- notify("Ищу сейфы в радиусе 500м...") -- Убрал уведомление, чтобы не спамило
-
     local safes = {}
+    
+    -- Ищем сейфы в радиусе 500 метров
     local parts = Workspace:GetPartBoundsInRadius(hrp.Position, searchRadius)
     local checked = {}
 
@@ -331,6 +331,7 @@ local function doSafeFarm()
         local model = part.Parent
         if model and model:IsA("Model") and not checked[model] then
             local n = model.Name:lower()
+            -- Ищем именно JewelSafe, GoldJewelSafe и т.д.
             if n:find("safe") then
                 checked[model] = true
                 table.insert(safes, model)
@@ -339,7 +340,6 @@ local function doSafeFarm()
     end
 
     if #safes > 0 then
-        notify("Найдено сейфов: " .. #safes)
         for i, safe in ipairs(safes) do
             local targetPart = safe.PrimaryPart or safe:FindFirstChildWhichIsA("BasePart") or safe:FindFirstChild("Hitbox")
             if targetPart then
@@ -356,14 +356,11 @@ local function doSafeFarm()
                         VirtualUser:KeyDown(Enum.KeyCode.E)
                         task.wait(1.2) 
                         VirtualUser:KeyUp(Enum.KeyCode.E)
-                    else
-                        local click = safe:FindFirstChildWhichIsA("ClickDetector", true)
-                        if click then fireclickdetector(click) end
                     end
-                    task.wait(0.5)
+                    task.wait(0.3)
                     
-                    -- 3. СБОР ЛУТА
-                    local lootParts = Workspace:GetPartBoundsInRadius(targetPart.Position, searchRadius)
+                    -- 3. СБОР ЛУТА (ТОЛЬКО В РАДИУСЕ 25 МЕТРОВ ОТ СЕЙФА)
+                    local lootParts = Workspace:GetPartBoundsInRadius(targetPart.Position, lootRadius)
                     for _, lootPart in ipairs(lootParts) do
                         local lootObj = lootPart.Parent
                         local lootName = lootPart.Name:lower()
@@ -402,13 +399,12 @@ end
 
 -- Цикл проверки для переключателя
 task.spawn(function()
-    while task.wait(2) do -- Проверяем каждые 2 секунды
+    while task.wait(2) do 
         if autoSafeFarm and not isSafeFarming then
             doSafeFarm()
         end
     end
 end)
-
 
 -- ==========================================
 -- 2. ESP НА ИГРОКОВ (С ИНФОЙ)
