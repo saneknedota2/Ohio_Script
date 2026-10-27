@@ -21,9 +21,8 @@ local isHealing = false
 local isSafeFarming = false
 local autoSafeFarm = false
 
--- ТВОИ НАСТРОЙКИ РАДИУСА
 local searchRadius = 1000 -- Сейфы ищем в 1000 метрах
-local lootRadius = 30     -- Лут собираем в 30 метрах
+local lootRadius = 25     -- Лут собираем в 25 метрах
 
 local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, AllCards = false, Jewel = false, PlayersESP = false }
 local ESP_COLORS = {
@@ -50,9 +49,9 @@ local function notify(text)
     label.Parent = notifyGui
     Instance.new("UICorner", label).CornerRadius = UDim.new(0, 6)
     
-    task.delay(2.5, function()
-        TweenService:Create(label, TweenInfo.new(0.5), {TextTransparency = 1, BackgroundTransparency = 1}):Play()
-        task.wait(0.5)
+    task.delay(2, function()
+        TweenService:Create(label, TweenInfo.new(0.3), {TextTransparency = 1, BackgroundTransparency = 1}):Play()
+        task.wait(0.3)
         label:Destroy()
     end)
 end
@@ -86,7 +85,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu (Jewel Fix 2)"
+titleText.Text = "ROCKET | Ohio Menu (Fast Farm)"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 15
@@ -252,7 +251,7 @@ end
 
 -- Вкладки
 createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(s) autoFarmBank = s end)
-createToggleButton(pageMain, "Авто-Взлом Сейфов", false, Color3.fromRGB(255, 150, 0), function(s) autoSafeFarm = s end)
+createToggleButton(pageMain, "Авто-Взлом Сейфов (Быстрый)", false, Color3.fromRGB(255, 150, 0), function(s) autoSafeFarm = s end)
 
 createToggleButton(pageESP, "Игроки (Инфо)", false, ESP_COLORS.PlayersESP, function(s) espToggles.PlayersESP = s end)
 createToggleButton(pageESP, "Оружие (В продаже)", false, ESP_COLORS.ShopWeapon, function(s) espToggles.ShopWeapon = s end)
@@ -306,7 +305,7 @@ end)
 switchTab("main")
 
 -- ==========================================
--- 1. АВТО-ВЗЛОМ (ИСПРАВЛЕНЫ ТАБЛИЧКИ И ВЫКЛЮЧЕНИЕ)
+-- 1. БЫСТРЫЙ АВТО-ВЗЛОМ (БЕЗ ДЕНЕГ И БЕЗ ТАБЛИЧЕК)
 -- ==========================================
 local function doSafeFarm()
     local char = player.Character
@@ -336,14 +335,13 @@ local function doSafeFarm()
     if #safes == 0 then return end
 
     for i, safe in ipairs(safes) do
-        -- Проверка: если выключили, прекращаем
         if not autoSafeFarm then break end
 
         local targetPart = safe.PrimaryPart or safe:FindFirstChildWhichIsA("BasePart") or safe:FindFirstChild("Hitbox")
         if targetPart then
-            notify("Сейф " .. i .. ": Телепорт и Взлом")
+            notify("Сейф " .. i .. ": Взлом")
             pcall(function() hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 1, 2)) end)
-            task.wait(0.5) 
+            task.wait(0.3) 
             
             local prompt = safe:FindFirstChildWhichIsA("ProximityPrompt", true) or targetPart:FindFirstChildWhichIsA("ProximityPrompt", true)
             if prompt then
@@ -354,17 +352,16 @@ local function doSafeFarm()
                 end)
             end
             
-            task.wait(1.5) 
+            task.wait(1) -- Ждем 1 секунду взлома
             pcall(function() VirtualUser:KeyUp(Enum.KeyCode.E) end)
             
-            notify("Сейф " .. i .. ": Жду 3 сек...")
-            task.wait(3)
+            notify("Сейф " .. i .. ": Жду выпадения (1.5с)...")
+            task.wait(1.5) -- Ждем, пока выпадут камни
             
-            notify("Сейф " .. i .. ": Сбор лута (30м)...")
+            notify("Сейф " .. i .. ": Сбор...")
             local emptyPasses = 0
             
-            while emptyPasses < 4 do
-                -- Проверка: если выключили, прекращаем
+            while emptyPasses < 3 do
                 if not autoSafeFarm then break end
 
                 local lootParts = Workspace:GetPartBoundsInRadius(targetPart.Position, lootRadius)
@@ -374,24 +371,23 @@ local function doSafeFarm()
                     local pName = lootPart.Name:lower()
                     local mName = lootPart.Parent and lootPart.Parent.Name:lower() or ""
                     
-                    -- ЖЕСТКИЙ ИГНОР ТАБЛИЧЕК, ТЕКСТУР И КАСС
+                    -- ЖЕСТКИЙ ИГНОР (Таблички, стены, деньги, кассы)
                     local isJunk = pName:find("safe") or pName:find("main") or pName:find("door") or pName:find("hitbox") or pName:find("part") or 
                                    pName:find("atm") or pName:find("register") or pName:find("stand") or pName:find("counter") or
-                                   pName:find("meshes") or pName:find("material") or mName:find("safe") or mName:find("meshes")
+                                   pName:find("cash") or pName:find("money") or mName:find("safe") or mName:find("cash")
                     
-                    -- То, что нам нужно
-                    local isJewel = pName:find("jewel") or pName:find("gem") or pName:find("diamond") or pName:find("ring") or pName:find("gold") or pName:find("ruby") or pName:find("necklace")
-                    local isWeapon = pName:find("gun") or pName:find("ak") or pName:find("m4") or pName:find("glock") or pName:find("deagle") or pName:find("pistol") or pName:find("сайга") or pName:find("пистолет") or pName:find("оружие")
-                    local isCard = pName:find("card") or pName:find("keycard")
-                    
-                    local isValuable = isJewel or isWeapon or isCard
+                    -- Проверяем, можно ли это подобрать
+                    local isPickable = lootPart:IsA("Tool") or (lootPart.Parent and lootPart.Parent:IsA("Tool")) or
+                                       lootPart:FindFirstChildWhichIsA("ClickDetector") or lootPart:FindFirstChildWhichIsA("ProximityPrompt") or
+                                       (lootPart.Parent and (lootPart.Parent:FindFirstChildWhichIsA("ClickDetector") or lootPart.Parent:FindFirstChildWhichIsA("ProximityPrompt")))
 
-                    if isValuable and not isJunk then
+                    -- Если это не мусор и можно подобрать — берем!
+                    if isPickable and not isJunk then
                         found = true
                         notify("Сбор: " .. pName)
                         pcall(function()
                             hrp.CFrame = CFrame.new(lootPart.Position)
-                            task.wait(0.2)
+                            task.wait(0.1) -- Быстрый сбор
                             
                             local lootPrompt = lootPart:FindFirstChildWhichIsA("ProximityPrompt", true) or (lootPart.Parent and lootPart.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
                             if lootPrompt then fireproximityprompt(lootPrompt) end
@@ -401,7 +397,7 @@ local function doSafeFarm()
                             
                             if firetouchinterest then
                                 firetouchinterest(hrp, lootPart, 0)
-                                task.wait(0.1)
+                                task.wait(0.05)
                                 firetouchinterest(hrp, lootPart, 1)
                             end
                         end)
@@ -414,19 +410,19 @@ local function doSafeFarm()
                 else
                     emptyPasses = 0
                 end
-                task.wait(0.5)
+                task.wait(0.2)
             end
         end
     end
 
     notify("Возврат на место...")
-    task.wait(0.5)
+    task.wait(0.3)
     pcall(function() hrp.CFrame = startPos end)
     notify("Готово!")
 end
 
 task.spawn(function()
-    while task.wait(2) do 
+    while task.wait(1) do -- Проверяем каждую секунду
         if autoSafeFarm and not isSafeFarming then
             isSafeFarming = true
             task.spawn(function()
@@ -565,7 +561,6 @@ task.spawn(function()
                         local isFood = n:find("food") or n:find("аптеч") or n:find("повяз") or n:find("medkit")
                         local isCard = n:find("card") or n:find("keycard")
                         
-                        -- Драгоценности
                         local isJewel = n:find("jewel") or n:find("gem") or n:find("diamond") or n:find("ring") or n:find("gold")
 
                         if espToggles.ShopWeapon and isGun and (obj:FindFirstChild("Price") or obj:FindFirstChildWhichIsA("NumberValue")) then
