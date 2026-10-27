@@ -21,8 +21,8 @@ local isHealing = false
 local isSafeFarming = false
 local autoSafeFarm = false
 
-local searchRadius = 1000 -- Радиус поиска сейфов
-local lootRadius = 150    -- Радиус сбора лута вокруг ОДНОГО сейфа
+local searchRadius = 1000
+local lootRadius = 150
 
 local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, AllCards = false, PlayersESP = false }
 local ESP_COLORS = {
@@ -32,13 +32,8 @@ local ESP_COLORS = {
 }
 
 -- ==========================================
--- ГЛАВНОЕ МЕНЮ
+-- УВЕДОМЛЕНИЯ
 -- ==========================================
-local screenGui = Instance.new("ScreenGui")
-screenGui.ResetOnSpawn = false
-screenGui.Parent = playerGui
-
--- Уведомления
 local notifyGui = Instance.new("ScreenGui")
 notifyGui.ResetOnSpawn = false
 notifyGui.Parent = playerGui
@@ -54,12 +49,19 @@ local function notify(text)
     label.Parent = notifyGui
     Instance.new("UICorner", label).CornerRadius = UDim.new(0, 6)
     
-    task.delay(3, function()
+    task.delay(2.5, function()
         TweenService:Create(label, TweenInfo.new(0.5), {TextTransparency = 1, BackgroundTransparency = 1}):Play()
         task.wait(0.5)
         label:Destroy()
     end)
 end
+
+-- ==========================================
+-- ГЛАВНОЕ МЕНЮ
+-- ==========================================
+local screenGui = Instance.new("ScreenGui")
+screenGui.ResetOnSpawn = false
+screenGui.Parent = playerGui
 
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(0, 400, 0, 40)
@@ -83,7 +85,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu (Smart Safe)"
+titleText.Text = "ROCKET | Ohio Menu (Debug Safe)"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 15
@@ -121,7 +123,6 @@ arrowBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- Перетаскивание меню
 local dragging, dragInput, dragStart, startPos
 titleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -141,7 +142,6 @@ UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
 end)
 
--- Вкладки
 local tabBar = Instance.new("Frame")
 tabBar.Size = UDim2.new(1, -20, 0, 30)
 tabBar.Position = UDim2.new(0, 10, 0, 10)
@@ -249,13 +249,10 @@ local function createStatSetting(parent, label, defaultVal, callback)
     txtBox.ReturnPressedFromOnScreenKeyboard:Connect(apply)
 end
 
--- ==========================================
--- ВКЛАДКИ НАПОЛНЕНИЕ
--- ==========================================
+-- Вкладки
 createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(s) autoFarmBank = s end)
-createToggleButton(pageMain, "Авто-Взлом Сейфов (Умный)", false, Color3.fromRGB(255, 150, 0), function(s) autoSafeFarm = s end)
+createToggleButton(pageMain, "Авто-Взлом Сейфов (Тест)", false, Color3.fromRGB(255, 150, 0), function(s) autoSafeFarm = s end)
 
--- ESP
 createToggleButton(pageESP, "Игроки (Инфо)", false, ESP_COLORS.PlayersESP, function(s) espToggles.PlayersESP = s end)
 createToggleButton(pageESP, "Оружие (В продаже)", false, ESP_COLORS.ShopWeapon, function(s) espToggles.ShopWeapon = s end)
 createToggleButton(pageESP, "Оружие (Подобрать)", false, ESP_COLORS.DropWeapon, function(s) espToggles.DropWeapon = s end)
@@ -264,7 +261,6 @@ createToggleButton(pageESP, "Деньги (Купюры)", false, ESP_COLORS.Mon
 createToggleButton(pageESP, "Еда / Аптечки", false, ESP_COLORS.Food, function(s) espToggles.Food = s end)
 createToggleButton(pageESP, "Карточки", false, ESP_COLORS.AllCards, function(s) espToggles.AllCards = s end)
 
--- HUMAN
 createStatSetting(pageHuman, "Скорость:", 16, function(val) desiredSpeed = val end)
 createStatSetting(pageHuman, "Прыжок:", 50, function(val) desiredJump = val end)
 createStatSetting(pageHuman, "Порог ХП (Хил):", 65, function(val) healThreshold = val end)
@@ -308,20 +304,16 @@ end)
 switchTab("main")
 
 -- ==========================================
--- 1. УМНЫЙ АВТО-ВЗЛОМ (ПОШАГОВЫЙ СБОР)
+-- 1. УМНЫЙ АВТО-ВЗЛОМ (С УВЕДОМЛЕНИЯМИ И ЖЕСТКОЙ ПАУЗОЙ)
 -- ==========================================
 local function doSafeFarm()
-    if isSafeFarming then return end
-    isSafeFarming = true
-
     local char = player.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then isSafeFarming = false; return end
+    if not hrp then return end
 
     local startPos = hrp.CFrame
     local safes = {}
     
-    -- Ищем сейфы в радиусе 1000 метров
     local parts = Workspace:GetPartBoundsInRadius(hrp.Position, searchRadius)
     local checked = {}
 
@@ -339,85 +331,103 @@ local function doSafeFarm()
         end
     end
 
-    if #safes > 0 then
-        for i, safe in ipairs(safes) do
-            local targetPart = safe.PrimaryPart or safe:FindFirstChildWhichIsA("BasePart") or safe:FindFirstChild("Hitbox")
-            if targetPart then
+    if #safes == 0 then
+        notify("Сейфы не найдены рядом!")
+        return
+    end
+
+    notify("Найдено сейфов: " .. #safes)
+
+    for i, safe in ipairs(safes) do
+        local targetPart = safe.PrimaryPart or safe:FindFirstChildWhichIsA("BasePart") or safe:FindFirstChild("Hitbox")
+        if targetPart then
+            notify("Сейф " .. i .. ": Телепорт...")
+            pcall(function() hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 1, 2)) end)
+            task.wait(0.5) 
+            
+            notify("Сейф " .. i .. ": Взлом...")
+            local prompt = safe:FindFirstChildWhichIsA("ProximityPrompt", true) or targetPart:FindFirstChildWhichIsA("ProximityPrompt", true)
+            if prompt then
+                pcall(function() fireproximityprompt(prompt) end)
                 pcall(function()
-                    -- 1. Телепорт к сейфу
-                    hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 1, 2))
-                    task.wait(0.4) 
-                    
-                    -- 2. Взлом (держим E)
-                    local prompt = safe:FindFirstChildWhichIsA("ProximityPrompt", true) or targetPart:FindFirstChildWhichIsA("ProximityPrompt", true)
-                    if prompt then
-                        fireproximityprompt(prompt)
-                        VirtualUser:CaptureController()
-                        VirtualUser:KeyDown(Enum.KeyCode.E)
-                        task.wait(1.2) 
-                        VirtualUser:KeyUp(Enum.KeyCode.E)
-                    end
-                    
-                    -- 3. ЖДЕМ ВЫПАДЕНИЯ ДЕНЕГ
-                    task.wait(3) 
-                    
-                    -- 4. СБОР ЛУТА (Бесконечный цикл, пока есть лут вокруг этого сейфа)
-                    local lootFound = true
-                    local attempts = 0
-                    
-                    while lootFound and attempts < 5 do
-                        lootFound = false
-                        attempts = attempts + 1
-                        
-                        local lootParts = Workspace:GetPartBoundsInRadius(targetPart.Position, lootRadius)
-                        for _, lootPart in ipairs(lootParts) do
-                            local lootObj = lootPart.Parent
-                            local pName = lootPart.Name:lower()
-                            local mName = lootObj and lootObj.Name:lower() or ""
-
-                            local isCash = pName:find("cash") or mName:find("cash") or pName:find("money") or mName:find("money") or pName:find("деньги") or mName:find("деньги")
-                            local isJunk = pName:find("atm") or pName:find("register") or pName:find("stand") or pName:find("door") or mName:find("atm") or mName:find("register")
-
-                            if isCash and not isJunk then
-                                lootFound = true -- Нашли лут, значит нужно будет проверить еще раз
-                                pcall(function()
-                                    hrp.CFrame = CFrame.new(lootPart.Position)
-                                    task.wait(0.15) 
-                                    
-                                    local lootPrompt = lootObj:FindFirstChildWhichIsA("ProximityPrompt", true) or lootPart:FindFirstChildWhichIsA("ProximityPrompt", true)
-                                    if lootPrompt then fireproximityprompt(lootPrompt) end
-                                    
-                                    local lootClick = lootObj:FindFirstChildWhichIsA("ClickDetector", true) or lootPart:FindFirstChildWhichIsA("ClickDetector", true)
-                                    if lootClick then fireclickdetector(lootClick) end
-                                    
-                                    if firetouchinterest and lootPart:IsA("BasePart") then
-                                        firetouchinterest(hrp, lootPart, 0)
-                                        task.wait(0.1)
-                                        firetouchinterest(hrp, lootPart, 1)
-                                    end
-                                end)
-                            end
-                        end
-                        
-                        -- Если лут нашли, ждем немного и ищем еще (вдруг выпало что-то еще)
-                        if lootFound then task.wait(0.5) end
-                    end
+                    VirtualUser:CaptureController()
+                    VirtualUser:KeyDown(Enum.KeyCode.E)
                 end)
             end
+            
+            task.wait(1.5) 
+            pcall(function() VirtualUser:KeyUp(Enum.KeyCode.E) end)
+            
+            notify("Сейф " .. i .. ": Жду 3 сек...")
+            task.wait(3) -- ЖЕСТКАЯ ПАУЗА
+            
+            notify("Сейф " .. i .. ": Ищу лут...")
+            local emptyPasses = 0
+            
+            -- Цикл сбора: собирает по 1 предмету, пока 4 раза подряд не найдет пустоту
+            while emptyPasses < 4 do
+                local lootParts = Workspace:GetPartBoundsInRadius(targetPart.Position, lootRadius)
+                local found = false
+                
+                for _, lootPart in ipairs(lootParts) do
+                    local pName = lootPart.Name:lower()
+                    local mName = lootPart.Parent and lootPart.Parent.Name:lower() or ""
+                    
+                    local isCash = pName:find("cash") or pName:find("money") or mName:find("cash") or mName:find("money")
+                    local isJunk = pName:find("atm") or pName:find("register") or pName:find("stand") or pName:find("door") or mName:find("safe") or mName:find("atm")
+
+                    if isCash and not isJunk then
+                        found = true
+                        notify("Сбор: " .. pName)
+                        pcall(function()
+                            hrp.CFrame = CFrame.new(lootPart.Position)
+                            task.wait(0.2)
+                            
+                            local lootPrompt = lootPart:FindFirstChildWhichIsA("ProximityPrompt", true) or (lootPart.Parent and lootPart.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
+                            if lootPrompt then fireproximityprompt(lootPrompt) end
+                            
+                            local lootClick = lootPart:FindFirstChildWhichIsA("ClickDetector", true) or (lootPart.Parent and lootPart.Parent:FindFirstChildWhichIsA("ClickDetector", true))
+                            if lootClick then fireclickdetector(lootClick) end
+                            
+                            if firetouchinterest then
+                                firetouchinterest(hrp, lootPart, 0)
+                                task.wait(0.1)
+                                firetouchinterest(hrp, lootPart, 1)
+                            end
+                        end)
+                        break
+                    end
+                end
+                
+                if not found then
+                    emptyPasses = emptyPasses + 1
+                else
+                    emptyPasses = 0
+                end
+                task.wait(0.5)
+            end
+            notify("Сейф " .. i .. ": Готов")
         end
     end
 
-    -- Возврат на место
+    notify("Возврат на место...")
     task.wait(0.5)
     pcall(function() hrp.CFrame = startPos end)
-    isSafeFarming = false
+    notify("Все сейфы собраны!")
 end
 
 -- Цикл проверки для переключателя
 task.spawn(function()
     while task.wait(2) do 
         if autoSafeFarm and not isSafeFarming then
-            doSafeFarm()
+            isSafeFarming = true
+            task.spawn(function()
+                local success, err = pcall(doSafeFarm)
+                if not success then
+                    notify("Ошибка скрипта: " .. tostring(err))
+                end
+                isSafeFarming = false
+            end)
         end
     end
 end)
