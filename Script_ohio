@@ -2,12 +2,20 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
 
+-- Настройки
 local autoFarmBank = false
-local freeCamEnabled = false
+local aimbotEnabled = false
+local autoShootEnabled = false
+local speedHackEnabled = false
+local jumpHackEnabled = false
+local fovRadius = 150
+local desiredSpeed = 100
+local desiredJump = 100
 local tracked = {}
 
 local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, AllCards = false, PlayersESP = false }
@@ -18,7 +26,7 @@ local ESP_COLORS = {
 }
 
 -- ==========================================
--- GUI (Оставляем как было)
+-- ГЛАВНЫЙ GUI
 -- ==========================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.ResetOnSpawn = false
@@ -47,7 +55,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu (Simple)"
+titleText.Text = "ROCKET | Ohio (Stable)"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 15
@@ -75,7 +83,7 @@ local isOpen = false
 arrowBtn.MouseButton1Click:Connect(function()
     isOpen = not isOpen
     if isOpen then
-        mainFrame.Size = UDim2.new(0, 400, 0, 400)
+        mainFrame.Size = UDim2.new(0, 400, 0, 450)
         arrowBtn.Text = "▲"
         contentFrame.Visible = true
     else
@@ -85,6 +93,29 @@ arrowBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+-- Перетаскивание
+local dragging, dragInput, dragStart, startPos
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true; dragStart = input.Position; startPos = mainFrame.Position
+    end
+end)
+titleBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+end)
+
+-- ==========================================
+-- ВКЛАДКИ
+-- ==========================================
 local tabBar = Instance.new("Frame")
 tabBar.Size = UDim2.new(1, -20, 0, 30)
 tabBar.Position = UDim2.new(0, 10, 0, 10)
@@ -120,6 +151,7 @@ end
 
 local pageMain = createPage("main")
 local pageESP = createPage("ESP")
+local pageHuman = createPage("HUMAN")
 
 local function switchTab(tabName)
     for name, frame in pairs(pages) do frame.Visible = (name == tabName) end
@@ -144,7 +176,11 @@ end
 
 createTabButton("Main", "main")
 createTabButton("ESP", "ESP")
+createTabButton("Human", "HUMAN")
 
+-- ==========================================
+-- UI ЭЛЕМЕНТЫ
+-- ==========================================
 local function createToggleButton(parent, labelText, initialVal, colorOn, callback)
     local isOn = initialVal
     local btn = Instance.new("TextButton")
@@ -167,18 +203,81 @@ local function createToggleButton(parent, labelText, initialVal, colorOn, callba
     return btn
 end
 
+local function createStatSetting(parent, label, defaultVal, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, -10, 0, 35)
+    frame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    frame.Parent = parent
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+    local txtLbl = Instance.new("TextLabel")
+    txtLbl.Size = UDim2.new(0.5, 0, 1, 0); txtLbl.Position = UDim2.new(0, 10, 0, 0)
+    txtLbl.BackgroundTransparency = 1; txtLbl.Text = label
+    txtLbl.TextColor3 = Color3.fromRGB(255, 255, 255); txtLbl.Font = Enum.Font.GothamBold; txtLbl.TextSize = 14
+    txtLbl.TextXAlignment = Enum.TextXAlignment.Left; txtLbl.Parent = frame
+    local txtBox = Instance.new("TextBox")
+    txtBox.Size = UDim2.new(0.3, 0, 0, 25); txtBox.Position = UDim2.new(0.65, 0, 0, 5)
+    txtBox.BackgroundColor3 = Color3.fromRGB(20, 20, 25); txtBox.Text = tostring(defaultVal)
+    txtBox.TextColor3 = Color3.fromRGB(0, 255, 255); txtBox.Font = Enum.Font.GothamBold; txtBox.TextSize = 14
+    txtBox.Parent = frame; Instance.new("UICorner", txtBox).CornerRadius = UDim.new(0, 4)
+    local function apply()
+        local num = tonumber(txtBox.Text)
+        if num then callback(num) else txtBox.Text = tostring(defaultVal) end
+    end
+    txtBox.FocusLost:Connect(apply)
+    txtBox.ReturnPressedFromOnScreenKeyboard:Connect(apply)
+end
+
+-- ==========================================
+-- 1. MAIN
+-- ==========================================
 createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(state) autoFarmBank = state end)
 
+-- ==========================================
+-- 2. ESP
+-- ==========================================
 createToggleButton(pageESP, "Оружие (В продаже)", false, ESP_COLORS.ShopWeapon, function(state) espToggles.ShopWeapon = state end)
 createToggleButton(pageESP, "Оружие (Подобрать)", false, ESP_COLORS.DropWeapon, function(state) espToggles.DropWeapon = state end)
-createToggleButton(pageESP, "Броня", false, ESP_COLORS.Armor, function(state) espToggles.Armor = state end)
+createToggleButton(pageESP, "Броня (Жилеты)", false, ESP_COLORS.Armor, function(state) espToggles.Armor = state end)
 createToggleButton(pageESP, "Деньги (Купюры)", false, ESP_COLORS.Money, function(state) espToggles.Money = state end)
+createToggleButton(pageESP, "Еда", false, ESP_COLORS.Food, function(state) espToggles.Food = state end)
 createToggleButton(pageESP, "Все карточки", false, ESP_COLORS.AllCards, function(state) espToggles.AllCards = state end)
+createToggleButton(pageESP, "Игроки (Ники)", false, ESP_COLORS.PlayersESP, function(state) espToggles.PlayersESP = state end)
+
+-- ==========================================
+-- 3. HUMAN (Скорость и Прыжок)
+-- ==========================================
+createStatSetting(pageHuman, "Скорость:", 100, function(val) desiredSpeed = val end)
+createStatSetting(pageHuman, "Прыжок:", 100, function(val) desiredJump = val end)
+
+createToggleButton(pageHuman, "Включить Скорость", false, Color3.fromRGB(0, 200, 100), function(state) speedHackEnabled = state end)
+createToggleButton(pageHuman, "Включить Прыжок", false, Color3.fromRGB(0, 200, 100), function(state) jumpHackEnabled = state end)
 
 switchTab("main")
 
 -- ==========================================
--- ПРОСТОЙ ESP
+-- ФИЗИКА (Переключатели)
+-- ==========================================
+RunService.Heartbeat:Connect(function()
+    if player.Character then
+        local hum = player.Character:FindFirstChild("Humanoid")
+        if hum then
+            if speedHackEnabled then
+                if hum.WalkSpeed ~= desiredSpeed then hum.WalkSpeed = desiredSpeed end
+            else
+                if hum.WalkSpeed ~= 16 then hum.WalkSpeed = 16 end
+            end
+            
+            if jumpHackEnabled then
+                if hum.JumpPower ~= desiredJump then hum.JumpPower = desiredJump; hum.UseJumpPower = true end
+            else
+                if hum.JumpPower ~= 50 then hum.JumpPower = 50; hum.UseJumpPower = true end
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- ESP ЛОГИКА (БЕЗ ЛАГОВ И БЕЗ КРАСНЫХ ПОЛОС)
 -- ==========================================
 local espFolder = Instance.new("Folder", Workspace)
 
@@ -201,7 +300,7 @@ local function createVisual(obj, color, cat)
     lbl.Size = UDim2.new(1, 0, 1, 0)
     lbl.BackgroundTransparency = 1
     lbl.TextColor3 = color
-    lbl.Text = obj.Name
+    lbl.Text = string.sub(obj.Name, 1, 15) -- ОБРЕЗАЕМ ТЕКСТ, ЧТОБЫ НЕ БЫЛО КРАСНЫХ ПОЛОС
     lbl.Parent = bb
     
     tracked[obj] = {hl=hl, bb=bb, cat=cat}
@@ -215,74 +314,102 @@ task.spawn(function()
             end
         end
         
-        -- Просто перебираем ВСЕ объекты в игре
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if not tracked[obj] then
+        local parts = Workspace:GetDescendants()
+        local count = 0
+        
+        for _, obj in ipairs(parts) do
+            if not tracked[obj] and (obj:IsA("Model") or obj:IsA("Tool") or obj:IsA("BasePart")) then
+                local isPlayer = Players:GetPlayerFromCharacter(obj) or (obj.Parent and Players:GetPlayerFromCharacter(obj.Parent))
                 local n = obj.Name:lower()
                 
-                -- Пропускаем игроков
-                if not Players:GetPlayerFromCharacter(obj) and not (obj.Parent and Players:GetPlayerFromCharacter(obj.Parent)) then
+                -- Игроки
+                if isPlayer and espToggles.PlayersESP then
+                    if obj:IsA("Model") and obj:FindFirstChild("Head") then
+                        createVisual(obj, ESP_COLORS.PlayersESP, "PlayersESP")
+                        count = count + 1
+                    end
+                -- Объекты (Игнорируем мусор, клавиатуры и длинные имена)
+                elseif not isPlayer and #obj.Name < 25 and not (n:find("fake") or n:find("glass") or n:find("wall") or n:find("floor") or n:find("part") or n:find("hitbox") or n:find("keypad") or n:find("atm") or n:find("tutorial") or n:find("door") or n:find("camera")) then
                     
-                    -- ДЕНЬГИ
-                    if (n == "cash" or n == "money" or n:find("bankcash")) and espToggles.Money then
-                        createVisual(obj, ESP_COLORS.Money, "Money")
-                    
-                    -- ОРУЖИЕ
-                    elseif (n:find("gun") or n:find("ak47") or n:find("m4") or n:find("glock") or n:find("deagle") or n:find("m1911") or n:find("сайга")) then
-                        local hasPrice = obj:FindFirstChild("Price") or obj:FindFirstChildWhichIsA("NumberValue")
-                        if hasPrice and espToggles.ShopWeapon then
-                            createVisual(obj, ESP_COLORS.ShopWeapon, "ShopWeapon")
-                        elseif not hasPrice and espToggles.DropWeapon then
-                            createVisual(obj, ESP_COLORS.DropWeapon, "DropWeapon")
+                    if n:find("ak") or n:find("m4") or n:find("gun") or n:find("glock") or n:find("m1911") or n:find("deagle") or n:find("сайга") or n:find("пистолет") or n:find("оружие") then
+                        local hasPrice = obj:FindFirstChild("Price") or obj:FindFirstChildWhichIsA("NumberValue") or (obj.Parent and obj.Parent:FindFirstChild("Price"))
+                        if hasPrice then
+                            if espToggles.ShopWeapon then createVisual(obj, ESP_COLORS.ShopWeapon, "ShopWeapon"); count = count + 1 end
+                        else
+                            if espToggles.DropWeapon then createVisual(obj, ESP_COLORS.DropWeapon, "DropWeapon"); count = count + 1 end
                         end
-                    
-                    -- КАРТОЧКИ
-                    elseif (n:find("card") or n:find("key")) and espToggles.AllCards then
-                        createVisual(obj, ESP_COLORS.AllCards, "AllCards")
-                    
-                    -- БРОНЯ
-                    elseif (n:find("armor") or n:find("vest")) and espToggles.Armor then
-                        createVisual(obj, ESP_COLORS.Armor, "Armor")
+                    elseif n:find("жилет") or n:find("armor") or n:find("vest") then
+                        if espToggles.Armor then createVisual(obj, ESP_COLORS.Armor, "Armor"); count = count + 1 end
+                    elseif n == "cash" or n == "money" or n:find("bankcash") or n:find("moneydrop") then
+                        if espToggles.Money then createVisual(obj, ESP_COLORS.Money, "Money"); count = count + 1 end
+                    elseif n:find("card") and not n:find("keypad") then
+                        if espToggles.AllCards then createVisual(obj, ESP_COLORS.AllCards, "AllCards"); count = count + 1 end
+                    elseif n:find("food") or n:find("medkit") or n:find("bandage") then
+                        if espToggles.Food then createVisual(obj, ESP_COLORS.Food, "Food"); count = count + 1 end
                     end
                 end
             end
+            
+            -- Ограничение, чтобы не было лагов
+            if count > 50 then break end
+            
+            -- Микро-пауза, чтобы игра не зависала
+            if _ % 100 == 0 then task.wait() end
         end
     end
 end)
 
 -- ==========================================
--- ПРОСТОЙ АВТО-ФАРМ (СПАМ КЛИКОВ)
+-- АВТО-ФАРМ (ТЕЛЕПОРТ + TOUCH)
 -- ==========================================
 task.spawn(function()
-    while task.wait(0.1) do
+    while task.wait(0.3) do
         if autoFarmBank and player.Character then
             local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+            local hum = player.Character:FindFirstChild("Humanoid")
             
-            if hrp then
+            if hrp and hum then
+                local targetCash = nil
+                local shortestDist = math.huge
+                
                 for _, obj in ipairs(Workspace:GetDescendants()) do
                     local n = obj.Name:lower()
-                    
-                    -- Ищем деньги
-                    if (n == "cash" or n == "money" or n:find("bankcash")) and not n:find("atm") then
-                        local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
-                        
-                        if pos then
-                            local dist = (pos - hrp.Position).Magnitude
-                            
-                            -- Если мы рядом (меньше 15 метров), просто кликаем
-                            if dist < 15 then
-                                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
-                                if prompt then pcall(function() fireproximityprompt(prompt) end) end
-                                
-                                local click = obj:FindFirstChildWhichIsA("ClickDetector", true)
-                                if click then pcall(function() fireclickdetector(click) end) end
-                            else
-                                -- Если далеко, телепортируемся к деньгам
-                                pcall(function()
-                                    hrp.CFrame = CFrame.new(pos + Vector3.new(0, 2, 0))
-                                end)
+                    -- Ищем строго BankCash, Cash или Money, игнорируя банкоматы
+                    if (n == "bankcash" or n == "cash" or n == "money") then
+                        if not n:find("atm") and not n:find("register") and not n:find("safe") then
+                            local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
+                            if pos then
+                                local dist = (pos - hrp.Position).Magnitude
+                                if dist < shortestDist then
+                                    shortestDist = dist
+                                    targetCash = obj
+                                end
                             end
                         end
+                    end
+                end
+
+                if targetCash then
+                    local pos = targetCash:IsA("BasePart") and targetCash.Position or (targetCash.PrimaryPart and targetCash.PrimaryPart.Position)
+                    if pos then
+                        pcall(function()
+                            -- Телепорт к деньгам
+                            hrp.CFrame = CFrame.new(pos + Vector3.new(0, 2, 0))
+                            hum.WalkSpeed = 16
+                            
+                            -- Способ 1: Обычный клик
+                            local prompt = targetCash:FindFirstChildWhichIsA("ProximityPrompt", true)
+                            if prompt then fireproximityprompt(prompt) end
+                            local click = targetCash:FindFirstChildWhichIsA("ClickDetector", true)
+                            if click then fireclickdetector(click) end
+                            
+                            -- Способ 2: Нажатие через Touch (самый надежный для телефонов)
+                            if firetouchinterest and targetCash:IsA("BasePart") then
+                                firetouchinterest(hrp, targetCash, 0)
+                                task.wait(0.05)
+                                firetouchinterest(hrp, targetCash, 1)
+                            end
+                        end)
                     end
                 end
             end
