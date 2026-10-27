@@ -21,8 +21,8 @@ local isHealing = false
 local isSafeFarming = false
 local autoSafeFarm = false
 
-local searchRadius = 1000 -- Сейфы ищем в 1000 метрах
-local lootRadius = 25     -- Лут собираем в 25 метрах
+local searchRadius = 1000
+local lootRadius = 30     
 
 local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, AllCards = false, Jewel = false, PlayersESP = false }
 local ESP_COLORS = {
@@ -85,7 +85,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu (Fast Farm)"
+titleText.Text = "ROCKET | Ohio Menu (Only Dropped Loot)"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 15
@@ -251,7 +251,7 @@ end
 
 -- Вкладки
 createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(s) autoFarmBank = s end)
-createToggleButton(pageMain, "Авто-Взлом Сейфов (Быстрый)", false, Color3.fromRGB(255, 150, 0), function(s) autoSafeFarm = s end)
+createToggleButton(pageMain, "Авто-Взлом Сейфов (Только дроп)", false, Color3.fromRGB(255, 150, 0), function(s) autoSafeFarm = s end)
 
 createToggleButton(pageESP, "Игроки (Инфо)", false, ESP_COLORS.PlayersESP, function(s) espToggles.PlayersESP = s end)
 createToggleButton(pageESP, "Оружие (В продаже)", false, ESP_COLORS.ShopWeapon, function(s) espToggles.ShopWeapon = s end)
@@ -305,7 +305,7 @@ end)
 switchTab("main")
 
 -- ==========================================
--- 1. БЫСТРЫЙ АВТО-ВЗЛОМ (БЕЗ ДЕНЕГ И БЕЗ ТАБЛИЧЕК)
+-- 1. БЫСТРЫЙ АВТО-ВЗЛОМ (ТОЛЬКО ДРОП, БЕЗ ДЕНЕГ И ВИТРИН)
 -- ==========================================
 local function doSafeFarm()
     local char = player.Character
@@ -352,13 +352,13 @@ local function doSafeFarm()
                 end)
             end
             
-            task.wait(1) -- Ждем 1 секунду взлома
+            task.wait(1) -- Держим E
             pcall(function() VirtualUser:KeyUp(Enum.KeyCode.E) end)
             
-            notify("Сейф " .. i .. ": Жду выпадения (1.5с)...")
-            task.wait(1.5) -- Ждем, пока выпадут камни
+            notify("Сейф " .. i .. ": Жду дроп (2с)...")
+            task.wait(2) -- Ждем 2 секунды, чтобы камни упали
             
-            notify("Сейф " .. i .. ": Сбор...")
+            notify("Сейф " .. i .. ": Сбор")
             local emptyPasses = 0
             
             while emptyPasses < 3 do
@@ -371,23 +371,28 @@ local function doSafeFarm()
                     local pName = lootPart.Name:lower()
                     local mName = lootPart.Parent and lootPart.Parent.Name:lower() or ""
                     
-                    -- ЖЕСТКИЙ ИГНОР (Таблички, стены, деньги, кассы)
+                    -- ЖЕСТКИЙ ИГНОР (Таблички, стены, ДЕНЬГИ, витрины)
                     local isJunk = pName:find("safe") or pName:find("main") or pName:find("door") or pName:find("hitbox") or pName:find("part") or 
                                    pName:find("atm") or pName:find("register") or pName:find("stand") or pName:find("counter") or
-                                   pName:find("cash") or pName:find("money") or mName:find("safe") or mName:find("cash")
+                                   pName:find("cash") or pName:find("money") or pName:find("dollar") or pName:find("bankcash") or
+                                   pName:find("glass") or pName:find("display") or pName:find("case") or 
+                                   mName:find("safe") or mName:find("cash") or mName:find("glass")
                     
-                    -- Проверяем, можно ли это подобрать
+                    -- Если предмет прибит к полу (на витрине) — не трогаем.
+                    -- Дроп всегда не Anchored (падает).
+                    local isDropped = not lootPart.Anchored or lootPart:IsA("Tool")
+
+                    -- Проверяем, можно ли подобрать
                     local isPickable = lootPart:IsA("Tool") or (lootPart.Parent and lootPart.Parent:IsA("Tool")) or
                                        lootPart:FindFirstChildWhichIsA("ClickDetector") or lootPart:FindFirstChildWhichIsA("ProximityPrompt") or
                                        (lootPart.Parent and (lootPart.Parent:FindFirstChildWhichIsA("ClickDetector") or lootPart.Parent:FindFirstChildWhichIsA("ProximityPrompt")))
 
-                    -- Если это не мусор и можно подобрать — берем!
-                    if isPickable and not isJunk then
+                    if isPickable and not isJunk and isDropped then
                         found = true
                         notify("Сбор: " .. pName)
                         pcall(function()
                             hrp.CFrame = CFrame.new(lootPart.Position)
-                            task.wait(0.1) -- Быстрый сбор
+                            task.wait(0.15)
                             
                             local lootPrompt = lootPart:FindFirstChildWhichIsA("ProximityPrompt", true) or (lootPart.Parent and lootPart.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
                             if lootPrompt then fireproximityprompt(lootPrompt) end
@@ -422,7 +427,7 @@ local function doSafeFarm()
 end
 
 task.spawn(function()
-    while task.wait(1) do -- Проверяем каждую секунду
+    while task.wait(1) do 
         if autoSafeFarm and not isSafeFarming then
             isSafeFarming = true
             task.spawn(function()
