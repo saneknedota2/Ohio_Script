@@ -688,3 +688,61 @@ task.spawn(function()
         end
     end
 end)
+-- ВРЕМЕННЫЙ КОД ДЛЯ ПОИСКА НАЗВАНИЙ (ВСТАВЬ В КОНЕЦ СКРИПТА)
+local findBtn = Instance.new("TextButton")
+findBtn.Size = UDim2.new(0, 200, 0, 50)
+findBtn.Position = UDim2.new(0.5, -100, 0.8, 0)
+findBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+findBtn.Text = "НАЙТИ НАЗВАНИЯ"
+findBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+findBtn.Font = Enum.Font.GothamBold
+findBtn.TextSize = 16
+findBtn.Parent = playerGui
+
+findBtn.MouseButton1Click:Connect(function()
+    local foundNames = {}
+    local hrp = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    -- Ищем объекты в радиусе 100 метров
+    local parts = Workspace:GetPartBoundsInRadius(hrp.Position, 100)
+    for _, part in ipairs(parts) do
+        local obj = part.Parent
+        if obj and (obj:IsA("Model") or obj:IsA("Tool")) then
+            local name = obj.Name
+            -- Пропускаем мусор и игроков
+            if not Players:GetPlayerFromCharacter(obj) and #name < 30 then
+                foundNames[name] = true
+            end
+        end
+    end
+
+    -- Выводим названия на экран
+    local list = ""
+    for name, _ in pairs(foundNames) do
+        list = list .. name .. "\n"
+    end
+    
+    if list == "" then
+        list = "Ничего не найдено рядом."
+    end
+
+    local display = Instance.new("TextLabel")
+    display.Size = UDim2.new(0, 300, 0, 400)
+    display.Position = UDim2.new(0.5, -150, 0.2, 0)
+    display.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    display.BackgroundTransparency = 0.2
+    display.TextColor3 = Color3.fromRGB(0, 255, 0)
+    display.Font = Enum.Font.Code
+    display.TextSize = 12
+    display.Text = list
+    display.TextWrapped = true
+    display.TextXAlignment = Enum.TextXAlignment.Left
+    display.TextYAlignment = Enum.TextYAlignment.Top
+    display.Parent = playerGui
+    
+    -- Чтобы список пропал через 10 секунд
+    task.delay(10, function()
+        display:Destroy()
+    end)
+end)
