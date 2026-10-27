@@ -14,6 +14,7 @@ local autoFarmBank = false
 local aimbotEnabled = false
 local autoShootEnabled = false
 local autoHealEnabled = false
+local healThreshold = 65
 local fovRadius = 150
 local isHealing = false
 local isSafeFarming = false
@@ -26,107 +27,108 @@ local ESP_COLORS = {
 }
 
 -- ==========================================
--- 1. МИНИ-МЕНЮ (Скорость и Прыжок) + Кнопка меню
+-- ГЛАВНОЕ МЕНЮ
 -- ==========================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 200, 0, 120)
-mainFrame.Position = UDim2.new(0, 10, 0, 60)
-mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+mainFrame.Size = UDim2.new(0, 400, 0, 40)
+mainFrame.Position = UDim2.new(0.5, -200, 0.1, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 mainFrame.BorderSizePixel = 0
 mainFrame.Parent = screenGui
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
 
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 25)
-title.BackgroundTransparency = 1
-title.Text = "Настройки"
-title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Font = Enum.Font.GothamBold
-title.Parent = mainFrame
+local mainStroke = Instance.new("UIStroke", mainFrame)
+mainStroke.Thickness = 2
+mainStroke.Color = Color3.fromRGB(0, 150, 255)
 
-local function createStatBox(yPos, text, defaultVal, callback)
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(0.5, 0, 0, 25)
-    lbl.Position = UDim2.new(0, 10, 0, yPos)
-    lbl.BackgroundTransparency = 1
-    lbl.Text = text
-    lbl.TextColor3 = Color3.fromRGB(200, 200, 200)
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
-    lbl.Font = Enum.Font.Gotham
-    lbl.Parent = mainFrame
-    
-    local box = Instance.new("TextBox")
-    box.Size = UDim2.new(0.3, 0, 0, 25)
-    box.Position = UDim2.new(0.6, 0, 0, yPos)
-    box.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-    box.Text = tostring(defaultVal)
-    box.TextColor3 = Color3.fromRGB(0, 255, 255)
-    box.Font = Enum.Font.GothamBold
-    box.Parent = mainFrame
-    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 4)
-    
-    box.FocusLost:Connect(function()
-        local num = tonumber(box.Text)
-        if num then callback(num) else box.Text = tostring(defaultVal) end
-    end)
-end
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 40)
+titleBar.BackgroundTransparency = 1
+titleBar.Active = true
+titleBar.Parent = mainFrame
 
-createStatBox(25, "Скорость:", 16, function(val) desiredSpeed = val end)
-createStatBox(55, "Прыжок:", 50, function(val) desiredJump = val end)
+local titleText = Instance.new("TextLabel")
+titleText.Size = UDim2.new(1, -40, 1, 0)
+titleText.Position = UDim2.new(0, 10, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.Text = "ROCKET | Ohio Menu"
+titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleText.Font = Enum.Font.GothamBold
+titleText.TextSize = 15
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.Parent = titleBar
 
-local openMenuBtn = Instance.new("TextButton")
-openMenuBtn.Size = UDim2.new(1, -20, 0, 25)
-openMenuBtn.Position = UDim2.new(0, 10, 0, 85)
-openMenuBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-openMenuBtn.Text = "Открыть меню читов"
-openMenuBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-openMenuBtn.Font = Enum.Font.GothamBold
-openMenuBtn.Parent = mainFrame
-Instance.new("UICorner", openMenuBtn).CornerRadius = UDim.new(0, 4)
+local arrowBtn = Instance.new("TextButton")
+arrowBtn.Size = UDim2.new(0, 40, 0, 40)
+arrowBtn.Position = UDim2.new(1, -40, 0, 0)
+arrowBtn.BackgroundTransparency = 1
+arrowBtn.Text = "▼"
+arrowBtn.TextColor3 = Color3.fromRGB(0, 150, 255)
+arrowBtn.Font = Enum.Font.GothamBold
+arrowBtn.TextSize = 20
+arrowBtn.Parent = titleBar
 
--- ==========================================
--- 2. БОЛЬШОЕ МЕНЮ
--- ==========================================
-local bigMenu = Instance.new("Frame")
-bigMenu.Size = UDim2.new(0, 350, 0, 350)
-bigMenu.Position = UDim2.new(0.5, -175, 0.5, -175)
-bigMenu.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-bigMenu.BorderSizePixel = 0
-bigMenu.Visible = false
-bigMenu.Parent = screenGui
-Instance.new("UICorner", bigMenu).CornerRadius = UDim.new(0, 8)
+local contentFrame = Instance.new("Frame")
+contentFrame.Size = UDim2.new(1, 0, 1, -40)
+contentFrame.Position = UDim2.new(0, 0, 0, 40)
+contentFrame.BackgroundTransparency = 1
+contentFrame.Visible = false
+contentFrame.Parent = mainFrame
 
-local closeBtn = Instance.new("TextButton")
-closeBtn.Size = UDim2.new(0, 30, 0, 30)
-closeBtn.Position = UDim2.new(1, -35, 0, 5)
-closeBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-closeBtn.Text = "X"
-closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeBtn.Font = Enum.Font.GothamBold
-closeBtn.Parent = bigMenu
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 4)
+local isOpen = false
+arrowBtn.MouseButton1Click:Connect(function()
+    isOpen = not isOpen
+    if isOpen then
+        mainFrame.Size = UDim2.new(0, 400, 0, 450)
+        arrowBtn.Text = "▲"
+        contentFrame.Visible = true
+    else
+        mainFrame.Size = UDim2.new(0, 400, 0, 40)
+        arrowBtn.Text = "▼"
+        contentFrame.Visible = false
+    end
+end)
 
-openMenuBtn.MouseButton1Click:Connect(function() bigMenu.Visible = true end)
-closeBtn.MouseButton1Click:Connect(function() bigMenu.Visible = false end)
+-- Перетаскивание меню
+local dragging, dragInput, dragStart, startPos
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true; dragStart = input.Position; startPos = mainFrame.Position
+    end
+end)
+titleBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+end)
 
+-- Вкладки
 local tabBar = Instance.new("Frame")
 tabBar.Size = UDim2.new(1, -20, 0, 30)
-tabBar.Position = UDim2.new(0, 10, 0, 40)
+tabBar.Position = UDim2.new(0, 10, 0, 10)
 tabBar.BackgroundTransparency = 1
-tabBar.Parent = bigMenu
+tabBar.Parent = contentFrame
 local tabLayout = Instance.new("UIListLayout", tabBar)
 tabLayout.FillDirection = Enum.FillDirection.Horizontal
-tabLayout.Padding = UDim.new(0, 5)
+tabLayout.Padding = UDim.new(0, 15)
+tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local pageContainer = Instance.new("Frame")
-pageContainer.Size = UDim2.new(1, -20, 1, -80)
-pageContainer.Position = UDim2.new(0, 10, 0, 75)
+pageContainer.Size = UDim2.new(1, -20, 1, -60)
+pageContainer.Position = UDim2.new(0, 10, 0, 50)
 pageContainer.BackgroundTransparency = 1
-pageContainer.Parent = bigMenu
+pageContainer.Parent = contentFrame
 
 local pages = {}
 local tabButtons = {}
@@ -136,6 +138,7 @@ local function createPage(name)
     frame.Size = UDim2.new(1, 0, 1, 0)
     frame.BackgroundTransparency = 1
     frame.BorderSizePixel = 0
+    frame.ScrollBarThickness = 2
     frame.Visible = false
     frame.Parent = pageContainer
     local layout = Instance.new("UIListLayout", frame)
@@ -146,7 +149,7 @@ end
 
 local pageMain = createPage("main")
 local pageESP = createPage("ESP")
-local pageAimbot = createPage("AIMBOT")
+local pageHuman = createPage("HUMAN")
 
 local function switchTab(tabName)
     for name, frame in pairs(pages) do frame.Visible = (name == tabName) end
@@ -157,10 +160,11 @@ end
 
 local function createTabButton(text, tabName)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 100, 0, 30)
+    btn.Size = UDim2.new(0, 90, 0, 30)
     btn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
     btn.Text = text
     btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 13
     btn.TextColor3 = Color3.fromRGB(200, 200, 200)
     btn.Parent = tabBar
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
@@ -168,9 +172,9 @@ local function createTabButton(text, tabName)
     tabButtons[tabName] = btn
 end
 
-createTabButton("Основное", "main")
+createTabButton("Main", "main")
 createTabButton("ESP", "ESP")
-createTabButton("Aimbot", "AIMBOT")
+createTabButton("Human", "HUMAN")
 
 local function createToggleButton(parent, labelText, initialVal, colorOn, callback)
     local isOn = initialVal
@@ -180,6 +184,7 @@ local function createToggleButton(parent, labelText, initialVal, colorOn, callba
     btn.Text = labelText .. ": " .. (isOn and "ON" or "OFF")
     btn.TextColor3 = isOn and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 13
     btn.Parent = parent
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
     btn.MouseButton1Click:Connect(function()
@@ -192,67 +197,35 @@ local function createToggleButton(parent, labelText, initialVal, colorOn, callba
     return btn
 end
 
--- ==========================================
--- 3. ФУНКЦИЯ АВТО-ВЗЛОМА СЕЙФОВ
--- ==========================================
-local function autoHackSafes()
-    if isSafeFarming then return end
-    isSafeFarming = true
-    
-    local char = player.Character
-    if not char then isSafeFarming = false; return end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then isSafeFarming = false; return end
-
-    -- 1. Запоминаем точку, где мы стоим
-    local startPos = hrp.CFrame
-    
-    -- 2. Ищем все сейфы на карте
-    local safes = {}
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        local n = obj.Name:lower()
-        if n:find("safe") then
-            local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
-            if pos then
-                table.insert(safes, obj)
-            end
-        end
+local function createStatSetting(parent, label, defaultVal, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, -10, 0, 32)
+    frame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    frame.Parent = parent
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+    local txtLbl = Instance.new("TextLabel")
+    txtLbl.Size = UDim2.new(0.5, 0, 1, 0); txtLbl.Position = UDim2.new(0, 10, 0, 0)
+    txtLbl.BackgroundTransparency = 1; txtLbl.Text = label
+    txtLbl.TextColor3 = Color3.fromRGB(255, 255, 255); txtLbl.Font = Enum.Font.GothamBold; txtLbl.TextSize = 13
+    txtLbl.TextXAlignment = Enum.TextXAlignment.Left; txtLbl.Parent = frame
+    local txtBox = Instance.new("TextBox")
+    txtBox.Size = UDim2.new(0.3, 0, 0, 22); txtBox.Position = UDim2.new(0.65, 0, 0, 5)
+    txtBox.BackgroundColor3 = Color3.fromRGB(20, 20, 25); txtBox.Text = tostring(defaultVal)
+    txtBox.TextColor3 = Color3.fromRGB(0, 255, 255); txtBox.Font = Enum.Font.GothamBold; txtBox.TextSize = 13
+    txtBox.Parent = frame; Instance.new("UICorner", txtBox).CornerRadius = UDim.new(0, 4)
+    local function apply()
+        local num = tonumber(txtBox.Text)
+        if num then callback(num) else txtBox.Text = tostring(defaultVal) end
     end
-
-    -- 3. Телепортируемся к каждому сейфу
-    for _, safe in ipairs(safes) do
-        local pos = safe:IsA("BasePart") and safe.Position or (safe.PrimaryPart and safe.PrimaryPart.Position)
-        if pos then
-            pcall(function()
-                -- Телепорт к сейфу (чуть выше, чтобы не застрять)
-                hrp.CFrame = CFrame.new(pos + Vector3.new(0, 2, 0))
-                task.wait(0.3) -- Пауза для античита
-                
-                -- Нажимаем на сейф
-                local prompt = safe:FindFirstChildWhichIsA("ProximityPrompt", true)
-                if prompt then fireproximityprompt(prompt) end
-                local click = safe:FindFirstChildWhichIsA("ClickDetector", true)
-                if click then fireclickdetector(click) end
-                
-                -- Имитация зажатия E (для взлома)
-                VirtualUser:CaptureController()
-                VirtualUser:KeyDown(Enum.KeyCode.E)
-                task.wait(1) -- Держим секунду
-                VirtualUser:KeyUp(Enum.KeyCode.E)
-                
-                task.wait(0.5) -- Ждем завершения взлома
-            end)
-        end
-    end
-
-    -- 4. Возвращаемся обратно на исходное место
-    task.wait(0.5)
-    hrp.CFrame = startPos
-    isSafeFarming = false
+    txtBox.FocusLost:Connect(apply)
+    txtBox.ReturnPressedFromOnScreenKeyboard:Connect(apply)
 end
 
--- Вкладка Основное
-createToggleButton(pageMain, "Авто-Фарм (ТП)", false, Color3.fromRGB(0, 200, 100), function(s) autoFarmBank = s end)
+-- ==========================================
+-- ВКЛАДКИ НАПОЛНЕНИЕ
+-- ==========================================
+-- Main
+createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(s) autoFarmBank = s end)
 
 local safeFarmBtn = Instance.new("TextButton")
 safeFarmBtn.Size = UDim2.new(1, -10, 0, 35)
@@ -262,14 +235,9 @@ safeFarmBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 safeFarmBtn.Font = Enum.Font.GothamBold
 safeFarmBtn.Parent = pageMain
 Instance.new("UICorner", safeFarmBtn).CornerRadius = UDim.new(0, 6)
-safeFarmBtn.MouseButton1Click:Connect(function()
-    safeFarmBtn.Text = "Взламываю..."
-    autoHackSafes()
-    safeFarmBtn.Text = "ВЗЛОМАТЬ ВСЕ СЕЙФЫ"
-end)
 
--- Вкладки ESP / Aimbot
-createToggleButton(pageESP, "Игроки (Инфо)", false, Color3.fromRGB(255, 255, 255), function(s) espToggles.PlayersESP = s end)
+-- ESP
+createToggleButton(pageESP, "Игроки (Инфо)", false, ESP_COLORS.PlayersESP, function(s) espToggles.PlayersESP = s end)
 createToggleButton(pageESP, "Оружие (В продаже)", false, ESP_COLORS.ShopWeapon, function(s) espToggles.ShopWeapon = s end)
 createToggleButton(pageESP, "Оружие (Подобрать)", false, ESP_COLORS.DropWeapon, function(s) espToggles.DropWeapon = s end)
 createToggleButton(pageESP, "Броня", false, ESP_COLORS.Armor, function(s) espToggles.Armor = s end)
@@ -277,74 +245,100 @@ createToggleButton(pageESP, "Деньги (Купюры)", false, ESP_COLORS.Mon
 createToggleButton(pageESP, "Еда / Аптечки", false, ESP_COLORS.Food, function(s) espToggles.Food = s end)
 createToggleButton(pageESP, "Карточки", false, ESP_COLORS.AllCards, function(s) espToggles.AllCards = s end)
 
-createToggleButton(pageAimbot, "Плавный Aimbot", false, Color3.fromRGB(255, 50, 50), function(s) aimbotEnabled = s end)
-createToggleButton(pageAimbot, "Auto-Shoot", false, Color3.fromRGB(255, 100, 0), function(s) autoShootEnabled = s end)
+-- HUMAN (Скорость, Прыжок, Хил + РАСКРЫВАЮЩИЙСЯ АИМБОТ)
+createStatSetting(pageHuman, "Скорость:", 16, function(val) desiredSpeed = val end)
+createStatSetting(pageHuman, "Прыжок:", 50, function(val) desiredJump = val end)
+createStatSetting(pageHuman, "Порог ХП (Хил):", 65, function(val) healThreshold = val end)
+createToggleButton(pageHuman, "Авто-Хил (Аптечки)", false, Color3.fromRGB(0, 200, 100), function(s) autoHealEnabled = s end)
+
+-- Кнопка раскрытия Аимбота
+local aimbotExpandBtn = Instance.new("TextButton")
+aimbotExpandBtn.Size = UDim2.new(1, -10, 0, 35)
+aimbotExpandBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+aimbotExpandBtn.Text = "Настройки Aimbot ▼"
+aimbotExpandBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+aimbotExpandBtn.Font = Enum.Font.GothamBold
+aimbotExpandBtn.TextSize = 14
+aimbotExpandBtn.Parent = pageHuman
+Instance.new("UICorner", aimbotExpandBtn).CornerRadius = UDim.new(0, 6)
+
+-- Контейнер для настроек Аимбота
+local aimbotSettings = Instance.new("Frame")
+aimbotSettings.Size = UDim2.new(1, -10, 0, 0)
+aimbotSettings.BackgroundTransparency = 1
+aimbotSettings.ClipsDescendants = true
+aimbotSettings.Parent = pageHuman
+local aimLayout = Instance.new("UIListLayout", aimbotSettings)
+aimLayout.Padding = UDim.new(0, 6)
+
+createToggleButton(aimbotSettings, "Плавный Aimbot", false, Color3.fromRGB(255, 50, 50), function(s) aimbotEnabled = s end)
+createToggleButton(aimbotSettings, "Auto-Shoot", false, Color3.fromRGB(255, 100, 0), function(s) autoShootEnabled = s end)
+createStatSetting(aimbotSettings, "Радиус (FOV):", 150, function(val) fovRadius = val end)
+
+local aimbotOpen = false
+aimbotExpandBtn.MouseButton1Click:Connect(function()
+    aimbotOpen = not aimbotOpen
+    if aimbotOpen then
+        aimbotExpandBtn.Text = "Настройки Aimbot ▲"
+        aimbotSettings.Size = UDim2.new(1, 0, 0, 110) -- Высота под содержимое
+    else
+        aimbotExpandBtn.Text = "Настройки Aimbot ▼"
+        aimbotSettings.Size = UDim2.new(1, 0, 0, 0)
+    end
+end)
 
 switchTab("main")
 
 -- ==========================================
--- 4. ПЛАВАЮЩАЯ КНОПКА (Действие + Хил)
+-- 1. ФУНКЦИЯ ВЗЛОМА СЕЙФОВ
 -- ==========================================
-local actionBtn = Instance.new("TextButton")
-actionBtn.Size = UDim2.new(0, 60, 0, 60)
-actionBtn.Position = UDim2.new(0.85, 0, 0.6, 0)
-actionBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
-actionBtn.BackgroundTransparency = 0.2
-actionBtn.Text = "ДЕЙСТВИЕ"
-actionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-actionBtn.Font = Enum.Font.GothamBold
-actionBtn.TextSize = 11
-actionBtn.Parent = screenGui
-Instance.new("UICorner", actionBtn).CornerRadius = UDim.new(1, 0)
-
-local dragging, dragInput, dragStart, startPos
-actionBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true; dragStart = input.Position; startPos = actionBtn.Position
-        input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
-    end
-end)
-actionBtn.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
-end)
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        local delta = input.Position - dragStart
-        actionBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-end)
-
-actionBtn.MouseButton1Click:Connect(function()
-    pcall(function()
-        VirtualUser:CaptureController()
-        VirtualUser:KeyDown(Enum.KeyCode.E)
-        task.wait(0.1)
-        VirtualUser:KeyUp(Enum.KeyCode.E)
-    end)
+safeFarmBtn.MouseButton1Click:Connect(function()
+    if isSafeFarming then return end
+    isSafeFarming = true
+    safeFarmBtn.Text = "Взламываю..."
     
     local char = player.Character
-    if char and char:FindFirstChild("Humanoid") and char.Humanoid.Health < 70 then
-        local backpack = player:FindFirstChild("Backpack")
-        if backpack then
-            for _, item in ipairs(backpack:GetChildren()) do
-                if item:IsA("Tool") then
-                    local n = item.Name:lower()
-                    if n:find("аптеч") or n:find("повяз") or n:find("бинт") then
-                        item.Parent = char
-                        task.wait(0.1)
-                        pcall(function() item:Activate() end)
-                        task.wait(0.5)
-                        if item.Parent == char then item.Parent = backpack end
-                        break
-                    end
-                end
-            end
+    if not char then isSafeFarming = false; return end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then isSafeFarming = false; return end
+
+    local startPos = hrp.CFrame
+    local safes = {}
+    for _, obj in ipairs(Workspace:GetDescendants()) do
+        local n = obj.Name:lower()
+        if n:find("safe") then
+            local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
+            if pos then table.insert(safes, obj) end
         end
     end
+
+    for _, safe in ipairs(safes) do
+        local pos = safe:IsA("BasePart") and safe.Position or (safe.PrimaryPart and safe.PrimaryPart.Position)
+        if pos then
+            pcall(function()
+                hrp.CFrame = CFrame.new(pos + Vector3.new(0, 2, 0))
+                task.wait(0.3) 
+                local prompt = safe:FindFirstChildWhichIsA("ProximityPrompt", true)
+                if prompt then fireproximityprompt(prompt) end
+                local click = safe:FindFirstChildWhichIsA("ClickDetector", true)
+                if click then fireclickdetector(click) end
+                VirtualUser:CaptureController()
+                VirtualUser:KeyDown(Enum.KeyCode.E)
+                task.wait(1) 
+                VirtualUser:KeyUp(Enum.KeyCode.E)
+                task.wait(0.5) 
+            end)
+        end
+    end
+
+    task.wait(0.5)
+    hrp.CFrame = startPos
+    isSafeFarming = false
+    safeFarmBtn.Text = "ВЗЛОМАТЬ ВСЕ СЕЙФЫ"
 end)
 
 -- ==========================================
--- 5. ESP НА ИГРОКОВ (С ИНФОЙ)
+-- 2. ESP НА ИГРОКОВ (С ИНФОЙ)
 -- ==========================================
 local espFolder = Instance.new("Folder", Workspace)
 local trackedPlayers = {}
@@ -357,8 +351,8 @@ local function createPlayerESP(otherPlayer)
 
     local bb = Instance.new("BillboardGui")
     bb.Name = otherPlayer.Name .. "_ESP"
-    bb.Size = UDim2.new(0, 150, 0, 60)
-    bb.StudsOffset = Vector3.new(0, 2.5, 0)
+    bb.Size = UDim2.new(0, 180, 0, 80) 
+    bb.StudsOffset = Vector3.new(0, 4, 0) 
     bb.AlwaysOnTop = true
     bb.Adornee = hrp
     bb.Parent = espFolder
@@ -373,8 +367,8 @@ local function createPlayerESP(otherPlayer)
     stroke.Thickness = 1.5
 
     local textBg = Instance.new("Frame")
-    textBg.Size = UDim2.new(1, 0, 0, 30)
-    textBg.Position = UDim2.new(0, 0, 0, -30)
+    textBg.Size = UDim2.new(1, 0, 0, 35)
+    textBg.Position = UDim2.new(0, 0, 0, -35)
     textBg.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
     textBg.BackgroundTransparency = 0.4
     textBg.Parent = bb
@@ -397,7 +391,6 @@ RunService.Heartbeat:Connect(function()
         for p, data in pairs(trackedPlayers) do data.bb.Enabled = false end
         return
     end
-
     for p, data in pairs(trackedPlayers) do
         local char = p.Character
         if char and data.label.Parent then
@@ -434,7 +427,7 @@ Players.PlayerRemoving:Connect(function(p)
 end)
 
 -- ==========================================
--- 6. ESP НА ПРЕДМЕТЫ
+-- 3. ESP НА ПРЕДМЕТЫ
 -- ==========================================
 local trackedItems = {}
 local function createItemVisual(obj, color, category)
@@ -494,7 +487,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 7. АИМБОТ
+-- 4. АИМБОТ
 -- ==========================================
 local fovCircle = Instance.new("Frame")
 fovCircle.Size = UDim2.new(0, fovRadius*2, 0, fovRadius*2)
@@ -551,7 +544,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==========================================
--- 8. ФИЗИКА И АВТО-ФАРМ
+-- 5. ФИЗИКА, АВТО-ХИЛ И АВТО-ФАРМ
 -- ==========================================
 RunService.Heartbeat:Connect(function()
     if player.Character then
@@ -559,6 +552,34 @@ RunService.Heartbeat:Connect(function()
         if hum then
             if hum.WalkSpeed ~= desiredSpeed then hum.WalkSpeed = desiredSpeed end
             if hum.JumpPower ~= desiredJump then hum.JumpPower = desiredJump; hum.UseJumpPower = true end
+        end
+    end
+end)
+
+task.spawn(function()
+    while task.wait(0.5) do 
+        if autoHealEnabled and player.Character and not isHealing then
+            local hum = player.Character:FindFirstChild("Humanoid")
+            if hum and hum.Health > 0 and hum.Health < healThreshold then
+                local backpack = player:FindFirstChild("Backpack")
+                if backpack then
+                    for _, item in ipairs(backpack:GetChildren()) do
+                        if item:IsA("Tool") then
+                            local n = item.Name:lower()
+                            if n:find("аптеч") or n:find("повяз") or n:find("бинт") then
+                                isHealing = true
+                                item.Parent = player.Character
+                                task.wait(0.2) 
+                                pcall(function() item:Activate() end)
+                                task.wait(1) 
+                                if item.Parent == player.Character then item.Parent = backpack end
+                                isHealing = false
+                                break
+                            end
+                        end
+                    end
+                end
+            end
         end
     end
 end)
