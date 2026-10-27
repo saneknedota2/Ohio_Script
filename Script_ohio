@@ -11,12 +11,17 @@ local TweenService = game:GetService("TweenService")
 -- Настройки
 local desiredSpeed = 16
 local desiredJump = 50
+local speedHackEnabled = false
+local jumpHackEnabled = false
 local autoFarmBank = false
 local autoSafeFarm = false
 local aimbotEnabled = false
 local autoShootEnabled = false
 local fovRadius = 150
 local isSafeFarming = false
+local autoHealEnabled = false
+local healThreshold = 65
+local isHealing = false
 
 local searchRadius = 1000
 local lootRadius = 30     
@@ -82,7 +87,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio (Final)"
+titleText.Text = "ROCKET | Ohio Menu (Speed Fix)"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 15
@@ -222,6 +227,7 @@ local function createToggleButton(parent, labelText, initialVal, colorOn, callba
     return btn
 end
 
+-- НОВАЯ ФУНКЦИЯ ДЛЯ НАСТРОЕК (Возвращает TextBox)
 local function createStatSetting(parent, label, defaultVal, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, -10, 0, 32)
@@ -244,6 +250,7 @@ local function createStatSetting(parent, label, defaultVal, callback)
     end
     txtBox.FocusLost:Connect(apply)
     txtBox.ReturnPressedFromOnScreenKeyboard:Connect(apply)
+    return txtBox
 end
 
 -- Main
@@ -259,9 +266,33 @@ createToggleButton(pageESP, "Еда", false, ESP_COLORS.Food, function(s) espTog
 createToggleButton(pageESP, "Карточки", false, ESP_COLORS.AllCards, function(s) espToggles.AllCards = s end)
 createToggleButton(pageESP, "Драгоценности", false, ESP_COLORS.Jewel, function(s) espToggles.Jewel = s end)
 
--- Human
-createStatSetting(pageHuman, "Скорость:", 16, function(val) desiredSpeed = val end)
-createStatSetting(pageHuman, "Прыжок:", 50, function(val) desiredJump = val end)
+-- Human (НОВЫЕ НАСТРОЙКИ СКОРОСТИ)
+local speedTextBox = createStatSetting(pageHuman, "Скорость:", 16, function(val) desiredSpeed = val end)
+local jumpTextBox = createStatSetting(pageHuman, "Прыжок:", 50, function(val) desiredJump = val end)
+
+-- Кнопка ПРИМЕНИТЬ (на случай, если клавиатура глючит)
+local applyStatsBtn = Instance.new("TextButton")
+applyStatsBtn.Size = UDim2.new(1, -10, 0, 35)
+applyStatsBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+applyStatsBtn.Text = "Применить Скорость и Прыжок"
+applyStatsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+applyStatsBtn.Font = Enum.Font.GothamBold
+applyStatsBtn.TextSize = 14
+applyStatsBtn.Parent = pageHuman
+Instance.new("UICorner", applyStatsBtn).CornerRadius = UDim.new(0, 6)
+
+applyStatsBtn.MouseButton1Click:Connect(function()
+    local s = tonumber(speedTextBox.Text)
+    local j = tonumber(jumpTextBox.Text)
+    if s then desiredSpeed = s end
+    if j then desiredJump = j end
+    notify("Скорость: " .. desiredSpeed .. " | Прыжок: " .. desiredJump)
+end)
+
+-- Тумблеры для включения/выключения хаков
+createToggleButton(pageHuman, "Включить Скорость", false, Color3.fromRGB(0, 200, 100), function(s) speedHackEnabled = s end)
+createToggleButton(pageHuman, "Включить Прыжок", false, Color3.fromRGB(0, 200, 100), function(s) jumpHackEnabled = s end)
+
 createStatSetting(pageHuman, "Порог ХП (Хил):", 65, function(val) healThreshold = val end)
 createToggleButton(pageHuman, "Авто-Хил (Аптечки)", false, Color3.fromRGB(0, 200, 100), function(s) autoHealEnabled = s end)
 
@@ -302,14 +333,19 @@ end)
 switchTab("main")
 
 -- ==========================================
--- ЦИКЛ УДЕРЖАНИЯ СКОРОСТИ И ПРЫЖКА (ЗАЩИТА ОТ СБРОСА)
+-- ЦИКЛ СКОРОСТИ И ПРЫЖКА (RunService.Stepped)
 -- ==========================================
-task.spawn(function()
-    while task.wait(0.1) do
-        if player.Character then
-            local hum = player.Character:FindFirstChild("Humanoid")
-            if hum then
+RunService.Stepped:Connect(function()
+    if player.Character then
+        local hum = player.Character:FindFirstChild("Humanoid")
+        if hum then
+            if speedHackEnabled then
                 hum.WalkSpeed = desiredSpeed
+            else
+                if hum.WalkSpeed > 17 then hum.WalkSpeed = 16 end
+            end
+            
+            if jumpHackEnabled then
                 hum.JumpPower = desiredJump
                 hum.UseJumpPower = true
             end
@@ -406,7 +442,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==========================================
--- АВТО-ВЗЛОМ СЕЙФОВ (ЖЕСТКИЙ ФИЛЬТР)
+-- АВТО-ВЗЛОМ СЕЙФОВ
 -- ==========================================
 local function doSafeFarm()
     local char = player.Character
@@ -472,7 +508,6 @@ local function doSafeFarm()
                     local pName = lootPart.Name:lower()
                     local mName = lootPart.Parent and lootPart.Parent.Name:lower() or ""
                     
-                    -- ЗАЩИТА ОТ ИГРОКОВ
                     local character = lootPart.Parent
                     local isCharacter = false
                     if character then
@@ -480,19 +515,15 @@ local function doSafeFarm()
                         if character.Parent and character.Parent:FindFirstChild("Humanoid") then isCharacter = true end
                     end
                     
-                    -- ЗАЩИТА ОТ ЧАСТЕЙ ТЕЛА
                     local isBodyPart = pName == "foot" or pName == "leg" or pName == "arm" or pName == "hand" or pName == "head" or pName == "torso" or pName == "leftfoot" or pName == "rightfoot"
 
-                    -- ЗАЩИТА ОТ ТАБЛИЧЕК, ВИТРИН И ДЕНЕГ
                     local isJunk = pName:find("safe") or pName:find("main") or pName:find("door") or pName:find("hitbox") or pName:find("part") or 
                                    pName:find("atm") or pName:find("register") or pName:find("stand") or pName:find("counter") or
                                    pName:find("cash") or pName:find("money") or pName:find("dollar") or pName:find("bankcash") or
                                    pName:find("glass") or pName:find("display") or pName:find("case") or 
                                    mName:find("safe") or mName:find("cash") or mName:find("glass")
                     
-                    -- Если это не игрок, не часть тела, не мусор и можно подобрать
                     if not isCharacter and not isBodyPart and not isJunk then
-                        -- Проверяем, можно ли это взять в руки
                         local isPickable = lootPart:IsA("Tool") or (lootPart.Parent and lootPart.Parent:IsA("Tool")) or
                                            lootPart:FindFirstChildWhichIsA("ClickDetector") or lootPart:FindFirstChildWhichIsA("ProximityPrompt") or
                                            (lootPart.Parent and (lootPart.Parent:FindFirstChildWhichIsA("ClickDetector") or lootPart.Parent:FindFirstChildWhichIsA("ProximityPrompt")))
