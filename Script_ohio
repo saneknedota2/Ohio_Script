@@ -56,7 +56,7 @@ local function notify(text)
 end
 
 -- ==========================================
--- ГЛАВНЫЙ GUI (СТАРЫЙ)
+-- ГЛАВНЫЙ GUI
 -- ==========================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.ResetOnSpawn = false
@@ -85,7 +85,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu (Fix)"
+titleText.Text = "ROCKET | Ohio Menu (Fix 2)"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 16
@@ -250,11 +250,11 @@ local function createStatSetting(parent, label, defaultVal, callback)
     txtBox.ReturnPressedFromOnScreenKeyboard:Connect(apply)
 end
 
--- 1. MAIN
+-- Main
 createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(s) autoFarmBank = s end)
 createToggleButton(pageMain, "Авто-Взлом Сейфов", false, Color3.fromRGB(255, 150, 0), function(s) autoSafeFarm = s end)
 
--- 2. ESP
+-- ESP
 createToggleButton(pageESP, "Игроки (Квадраты)", false, ESP_COLORS.Players, function(s) espToggles.Players = s end)
 createToggleButton(pageESP, "Оружие (В продаже)", false, ESP_COLORS.ShopWeapon, function(s) espToggles.ShopWeapon = s end)
 createToggleButton(pageESP, "Оружие (Подобрать)", false, ESP_COLORS.DropWeapon, function(s) espToggles.DropWeapon = s end)
@@ -263,7 +263,7 @@ createToggleButton(pageESP, "Деньги (Купюры)", false, ESP_COLORS.Mon
 createToggleButton(pageESP, "Еда / Аптечки", false, ESP_COLORS.Food, function(s) espToggles.Food = s end)
 createToggleButton(pageESP, "Драгоценности", false, ESP_COLORS.Jewel, function(s) espToggles.Jewel = s end)
 
--- 3. HUMAN
+-- Human
 createStatSetting(pageHuman, "Скорость:", 16, function(val) desiredSpeed = val end)
 createStatSetting(pageHuman, "Прыжок:", 50, function(val) desiredJump = val end)
 createStatSetting(pageHuman, "Порог ХП (Хил):", 65, function(val) healThreshold = val end)
@@ -307,7 +307,7 @@ end)
 switchTab("main")
 
 -- ==========================================
--- КРУГ АИМБОТА
+-- ОТРИСОВКА КРУГА АИМБОТА
 -- ==========================================
 local fovCircle = Instance.new("Frame")
 fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
@@ -378,7 +378,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==========================================
--- ФИЗИКА
+-- ФИЗИКА (СТАРЫЙ ЦИКЛ)
 -- ==========================================
 RunService.Heartbeat:Connect(function()
     if player.Character then
@@ -422,7 +422,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- АВТО-ВЗЛОМ СЕЙФОВ (ФИКС ЗАМКОВ)
+-- АВТО-ВЗЛОМ СЕЙФОВ (БЫСТРЫЙ ПОИСК)
 -- ==========================================
 local function doSafeFarm()
     local char = player.Character
@@ -432,20 +432,30 @@ local function doSafeFarm()
     local startPos = hrp.CFrame
     local safes = {}
     
-    for _, obj in ipairs(Workspace:GetDescendants()) do
-        local n = obj.Name:lower()
-        if n == "jewelsafe" or n == "goldjewelsafe" then
-            local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
-            if pos and (pos - hrp.Position).Magnitude < 1000 then
-                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true)
+    -- Быстрый поиск сейфов в радиусе 1000 метров
+    local parts = Workspace:GetPartBoundsInRadius(hrp.Position, 1000)
+    local checked = {}
+    
+    for _, part in ipairs(parts) do
+        local model = part.Parent
+        if model and (model:IsA("Model") or model:IsA("BasePart")) and not checked[model] then
+            local n = model.Name:lower()
+            if n == "jewelsafe" or n == "goldjewelsafe" then
+                local prompt = model:FindFirstChildWhichIsA("ProximityPrompt", true) or part:FindFirstChildWhichIsA("ProximityPrompt", true)
                 if prompt then
-                    table.insert(safes, obj)
+                    checked[model] = true
+                    table.insert(safes, model)
                 end
             end
         end
     end
 
-    if #safes == 0 then return end
+    if #safes == 0 then
+        notify("Сейфы не найдены рядом!")
+        return
+    end
+
+    notify("Найдено сейфов: " .. #safes)
 
     for i, safe in ipairs(safes) do
         if not autoSafeFarm then break end
