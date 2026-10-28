@@ -6,9 +6,8 @@ local VirtualUser = game:GetService("VirtualUser")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
-local TweenService = game:GetService("TweenService")
 
--- Глобальные переменные
+-- Настройки
 local autoFarmBank = false
 local autoSafeFarm = false
 local aimbotEnabled = false
@@ -23,14 +22,8 @@ local isSafeFarming = false
 local trackedItems = {}
 local trackedPlayers = {}
 
--- ТОЧНЫЕ НАЗВАНИЯ КАМНЕЙ (ИЗ ТВОЕГО СПИСКА)
-local EXACT_GEMS = {
-    ["emerald"] = true, ["topaz"] = true, ["amethyst"] = true, 
-    ["sapphire"] = true, ["ruby"] = true, ["diamond"] = true,
-    ["void gem"] = true, ["dark matter gem"] = true
-}
-
-local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, Jewel = false, Players = false }
+local EXACT_GEMS = { ["emerald"] = true, ["topaz"] = true, ["amethyst"] = true, ["sapphire"] = true, ["ruby"] = true, ["diamond"] = true, ["void gem"] = true, ["dark matter gem"] = true }
+local espToggles = { Players = false, ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, Jewel = false }
 local ESP_COLORS = {
     ShopWeapon = Color3.fromRGB(255, 100, 100), DropWeapon = Color3.fromRGB(200, 0, 0),
     Armor = Color3.fromRGB(50, 150, 255), Money = Color3.fromRGB(255, 200, 0), Food = Color3.fromRGB(0, 255, 150),
@@ -38,32 +31,7 @@ local ESP_COLORS = {
 }
 
 -- ==========================================
--- УВЕДОМЛЕНИЯ
--- ==========================================
-local notifyGui = Instance.new("ScreenGui")
-notifyGui.ResetOnSpawn = false
-notifyGui.Parent = playerGui
-local function notify(text)
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(0, 300, 0, 40)
-    label.Position = UDim2.new(0.5, -150, 0.1, 60)
-    label.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-    label.TextColor3 = Color3.fromRGB(0, 255, 255)
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 14
-    label.Text = text
-    label.Parent = notifyGui
-    Instance.new("UICorner", label).CornerRadius = UDim.new(0, 6)
-    
-    task.delay(2, function()
-        TweenService:Create(label, TweenInfo.new(0.3), {TextTransparency = 1, BackgroundTransparency = 1}):Play()
-        task.wait(0.3)
-        label:Destroy()
-    end)
-end
-
--- ==========================================
--- ГЛАВНЫЙ GUI
+-- ГЛАВНОЕ МЕНЮ
 -- ==========================================
 local screenGui = Instance.new("ScreenGui")
 screenGui.ResetOnSpawn = false
@@ -74,13 +42,9 @@ mainFrame.Size = UDim2.new(0, 400, 0, 40)
 mainFrame.Position = UDim2.new(0.5, -200, 0.1, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 mainFrame.BorderSizePixel = 0
-mainFrame.Active = false
 mainFrame.Parent = screenGui
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
-
-local mainStroke = Instance.new("UIStroke", mainFrame)
-mainStroke.Thickness = 2
-mainStroke.Color = Color3.fromRGB(0, 150, 255)
+Instance.new("UIStroke", mainFrame).Color = Color3.fromRGB(0, 150, 255)
 
 local titleBar = Instance.new("Frame")
 titleBar.Size = UDim2.new(1, 0, 0, 40)
@@ -92,7 +56,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu (Instant Jewels)"
+titleText.Text = "ROCKET | Ohio Menu (Full)"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 16
@@ -119,22 +83,15 @@ contentFrame.Parent = mainFrame
 local isOpen = false
 arrowBtn.MouseButton1Click:Connect(function()
     isOpen = not isOpen
-    if isOpen then
-        mainFrame.Size = UDim2.new(0, 400, 0, 450)
-        arrowBtn.Text = "▲"
-        contentFrame.Visible = true
-    else
-        mainFrame.Size = UDim2.new(0, 400, 0, 40)
-        arrowBtn.Text = "▼"
-        contentFrame.Visible = false
-    end
+    mainFrame.Size = UDim2.new(0, 400, 0, isOpen and 450 or 40)
+    arrowBtn.Text = isOpen and "▲" or "▼"
+    contentFrame.Visible = isOpen
 end)
 
+-- Перетаскивание
 local dragging, dragInput, dragStart, startPos
 titleBar.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true; dragStart = input.Position; startPos = mainFrame.Position
-    end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true; dragStart = input.Position; startPos = mainFrame.Position end
 end)
 titleBar.InputChanged:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
@@ -149,6 +106,7 @@ UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
 end)
 
+-- Вкладки
 local tabBar = Instance.new("Frame")
 tabBar.Size = UDim2.new(1, -20, 0, 30)
 tabBar.Position = UDim2.new(0, 10, 0, 10)
@@ -177,7 +135,10 @@ local function createPage(name)
     frame.Visible = false
     frame.Parent = pageContainer
     local layout = Instance.new("UIListLayout", frame)
-    layout.Padding = UDim.new(0, 8)
+    layout.Padding = UDim.new(0, 6)
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        frame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
+    end)
     pages[name] = frame
     return frame
 end
@@ -188,9 +149,7 @@ local pageHuman = createPage("HUMAN")
 
 local function switchTab(tabName)
     for name, frame in pairs(pages) do frame.Visible = (name == tabName) end
-    for tabText, btn in pairs(tabButtons) do
-        btn.TextColor3 = (tabText == tabName) and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(200, 200, 200)
-    end
+    for tabText, btn in pairs(tabButtons) do btn.TextColor3 = (tabText == tabName) and Color3.fromRGB(0, 150, 255) or Color3.fromRGB(200, 200, 200) end
 end
 
 local function createTabButton(text, tabName)
@@ -214,15 +173,14 @@ createTabButton("Human", "HUMAN")
 local function createToggleButton(parent, labelText, initialVal, colorOn, callback)
     local isOn = initialVal
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -10, 0, 35)
+    btn.Size = UDim2.new(1, -10, 0, 32)
     btn.BackgroundColor3 = isOn and colorOn or Color3.fromRGB(40, 40, 45)
     btn.Text = labelText .. ": " .. (isOn and "ON" or "OFF")
     btn.TextColor3 = isOn and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255)
     btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 14
+    btn.TextSize = 13
     btn.Parent = parent
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-    
     btn.MouseButton1Click:Connect(function()
         isOn = not isOn
         btn.Text = labelText .. ": " .. (isOn and "ON" or "OFF")
@@ -235,86 +193,90 @@ end
 
 local function createStatSetting(parent, label, defaultVal, callback)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -10, 0, 35)
+    frame.Size = UDim2.new(1, -10, 0, 32)
     frame.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
     frame.Parent = parent
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
     local txtLbl = Instance.new("TextLabel")
     txtLbl.Size = UDim2.new(0.5, 0, 1, 0); txtLbl.Position = UDim2.new(0, 10, 0, 0)
     txtLbl.BackgroundTransparency = 1; txtLbl.Text = label
-    txtLbl.TextColor3 = Color3.fromRGB(255, 255, 255); txtLbl.Font = Enum.Font.GothamBold; txtLbl.TextSize = 14
+    txtLbl.TextColor3 = Color3.fromRGB(255, 255, 255); txtLbl.Font = Enum.Font.GothamBold; txtLbl.TextSize = 13
     txtLbl.TextXAlignment = Enum.TextXAlignment.Left; txtLbl.Parent = frame
     local txtBox = Instance.new("TextBox")
-    txtBox.Size = UDim2.new(0.3, 0, 0, 25); txtBox.Position = UDim2.new(0.65, 0, 0, 5)
+    txtBox.Size = UDim2.new(0.3, 0, 0, 22); txtBox.Position = UDim2.new(0.65, 0, 0, 5)
     txtBox.BackgroundColor3 = Color3.fromRGB(20, 20, 25); txtBox.Text = tostring(defaultVal)
-    txtBox.TextColor3 = Color3.fromRGB(0, 255, 255); txtBox.Font = Enum.Font.GothamBold; txtBox.TextSize = 14
+    txtBox.TextColor3 = Color3.fromRGB(0, 255, 255); txtBox.Font = Enum.Font.GothamBold; txtBox.TextSize = 13
     txtBox.Parent = frame; Instance.new("UICorner", txtBox).CornerRadius = UDim.new(0, 4)
     local function apply()
         local num = tonumber(txtBox.Text)
         if num then callback(num) else txtBox.Text = tostring(defaultVal) end
     end
     txtBox.FocusLost:Connect(apply)
-    txtBox.ReturnedPressedFromOnScreenKeyboard:Connect(apply)
+    txtBox.ReturnPressedFromOnScreenKeyboard:Connect(apply)
 end
 
--- Main
-createToggleButton(pageMain, "Авто-Фарм Банка (ТП)", false, Color3.fromRGB(0, 200, 100), function(s) autoFarmBank = s end)
+-- ЗАПОЛНЕНИЕ ВКЛАДОК
+createToggleButton(pageMain, "Авто-Фарм Банка", false, Color3.fromRGB(0, 200, 100), function(s) autoFarmBank = s end)
 createToggleButton(pageMain, "Авто-Взлом Сейфов", false, Color3.fromRGB(255, 150, 0), function(s) autoSafeFarm = s end)
 
--- ESP
-createToggleButton(pageESP, "Игроки (Квадраты)", false, ESP_COLORS.Players, function(s) espToggles.Players = s end)
-createToggleButton(pageESP, "Оружие (В продаже)", false, ESP_COLORS.ShopWeapon, function(s) espToggles.ShopWeapon = s end)
-createToggleButton(pageESP, "Оружие (Подобрать)", false, ESP_COLORS.DropWeapon, function(s) espToggles.DropWeapon = s end)
+createToggleButton(pageESP, "Игроки (Инфо)", false, ESP_COLORS.Players, function(s) espToggles.Players = s end)
+createToggleButton(pageESP, "Оружие (Магазин)", false, ESP_COLORS.ShopWeapon, function(s) espToggles.ShopWeapon = s end)
+createToggleButton(pageESP, "Оружие (Дроп)", false, ESP_COLORS.DropWeapon, function(s) espToggles.DropWeapon = s end)
 createToggleButton(pageESP, "Броня", false, ESP_COLORS.Armor, function(s) espToggles.Armor = s end)
-createToggleButton(pageESP, "Деньги (Купюры)", false, ESP_COLORS.Money, function(s) espToggles.Money = s end)
-createToggleButton(pageESP, "Еда / Аптечки", false, ESP_COLORS.Food, function(s) espToggles.Food = s end)
-createToggleButton(pageESP, "Драгоценности", false, ESP_COLORS.Jewel, function(s) espToggles.Jewel = s end)
+createToggleButton(pageESP, "Деньги", false, ESP_COLORS.Money, function(s) espToggles.Money = s end)
+createToggleButton(pageESP, "Еда", false, ESP_COLORS.Food, function(s) espToggles.Food = s end)
+createToggleButton(pageESP, "Камни (Драгоценности)", false, ESP_COLORS.Jewel, function(s) espToggles.Jewel = s end)
 
--- Human
 createStatSetting(pageHuman, "Скорость:", 16, function(val) desiredSpeed = val end)
 createStatSetting(pageHuman, "Прыжок:", 50, function(val) desiredJump = val end)
 createStatSetting(pageHuman, "Порог ХП (Хил):", 65, function(val) healThreshold = val end)
-createToggleButton(pageHuman, "Авто-Хил (Аптечки)", false, Color3.fromRGB(0, 200, 100), function(s) autoHealEnabled = s end)
+createToggleButton(pageHuman, "Авто-Хил", false, Color3.fromRGB(0, 200, 100), function(s) autoHealEnabled = s end)
 
--- Аимбот
-local aimbotExpandBtn = Instance.new("TextButton")
-aimbotExpandBtn.Size = UDim2.new(1, -10, 0, 35)
-aimbotExpandBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-aimbotExpandBtn.Text = "Настройки Aimbot ▼"
-aimbotExpandBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-aimbotExpandBtn.Font = Enum.Font.GothamBold
-aimbotExpandBtn.TextSize = 14
-aimbotExpandBtn.Parent = pageHuman
-Instance.new("UICorner", aimbotExpandBtn).CornerRadius = UDim.new(0, 6)
+local aimbotExpand = Instance.new("TextButton")
+aimbotExpand.Size = UDim2.new(1, -10, 0, 35)
+aimbotExpand.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+aimbotExpand.Text = "Настройки Aimbot ▼"
+aimbotExpand.TextColor3 = Color3.fromRGB(255, 255, 255)
+aimbotExpand.Font = Enum.Font.GothamBold
+aimbotExpand.Parent = pageHuman
+Instance.new("UICorner", aimbotExpand).CornerRadius = UDim.new(0, 6)
 
-local aimbotSettings = Instance.new("Frame")
-aimbotSettings.Size = UDim2.new(1, -10, 0, 0)
-aimbotSettings.BackgroundTransparency = 1
-aimbotSettings.ClipsDescendants = true
-aimbotSettings.Parent = pageHuman
-local aimLayout = Instance.new("UIListLayout", aimbotSettings)
+local aimbotSet = Instance.new("Frame")
+aimbotSet.Size = UDim2.new(1, -10, 0, 0)
+aimbotSet.BackgroundTransparency = 1
+aimbotSet.ClipsDescendants = true
+aimbotSet.Parent = pageHuman
+local aimLayout = Instance.new("UIListLayout", aimbotSet)
 aimLayout.Padding = UDim.new(0, 6)
 
-createToggleButton(aimbotSettings, "Плавный Aimbot", false, Color3.fromRGB(255, 50, 50), function(s) aimbotEnabled = s end)
-createToggleButton(aimbotSettings, "Auto-Shoot", false, Color3.fromRGB(255, 100, 0), function(s) autoShootEnabled = s end)
-createStatSetting(aimbotSettings, "Радиус (FOV):", 150, function(val) fovRadius = val end)
+createToggleButton(aimbotSet, "Aimbot (Поворот)", false, Color3.fromRGB(255, 50, 50), function(s) aimbotEnabled = s end)
+createToggleButton(aimbotSet, "Auto-Shoot", false, Color3.fromRGB(255, 100, 0), function(s) autoShootEnabled = s end)
+createStatSetting(aimbotSet, "Радиус (FOV):", 150, function(val) fovRadius = val end)
 
 local aimbotOpen = false
-aimbotExpandBtn.MouseButton1Click:Connect(function()
+aimbotExpand.MouseButton1Click:Connect(function()
     aimbotOpen = not aimbotOpen
-    if aimbotOpen then
-        aimbotExpandBtn.Text = "Настройки Aimbot ▲"
-        aimbotSettings.Size = UDim2.new(1, 0, 0, 110)
-    else
-        aimbotExpandBtn.Text = "Настройки Aimbot ▼"
-        aimbotSettings.Size = UDim2.new(1, 0, 0, 0)
-    end
+    aimbotExpand.Text = "Настройки Aimbot " .. (aimbotOpen and "▲" or "▼")
+    aimbotSet.Size = UDim2.new(1, 0, 0, aimbotOpen and 110 or 0)
 end)
 
 switchTab("main")
 
 -- ==========================================
--- КРУГ АИМБОТА
+-- 1. ФИЗИКА (Скорость и Прыжок)
+-- ==========================================
+RunService.Heartbeat:Connect(function()
+    if player.Character then
+        local hum = player.Character:FindFirstChild("Humanoid")
+        if hum then
+            if hum.WalkSpeed ~= desiredSpeed then hum.WalkSpeed = desiredSpeed end
+            if hum.JumpPower ~= desiredJump then hum.JumpPower = desiredJump; hum.UseJumpPower = true end
+        end
+    end
+end)
+
+-- ==========================================
+-- 2. АИМБОТ И FOV
 -- ==========================================
 local fovCircle = Instance.new("Frame")
 fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
@@ -327,36 +289,28 @@ fovCircle.Parent = screenGui
 Instance.new("UICorner", fovCircle).CornerRadius = UDim.new(1, 0)
 local circleStroke = Instance.new("UIStroke", fovCircle)
 circleStroke.Color = Color3.fromRGB(255, 50, 50)
-circleStroke.Thickness = 1
 circleStroke.Transparency = 0.3
 
--- ==========================================
--- ЛОГИКА АИМБОТА
--- ==========================================
 local function getClosestTarget()
-    local closestPlayer = nil
+    local closest = nil
     local shortestDist = fovRadius
-    local centerPos = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
-    
+    local center = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
     for _, p in pairs(Players:GetPlayers()) do
         if p ~= player and p.Character then
             local head = p.Character:FindFirstChild("Head")
             if head then
                 local screenPos, onScreen = camera:WorldToViewportPoint(head.Position)
                 if onScreen then
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - centerPos).Magnitude
-                    if dist < shortestDist then
-                        shortestDist = dist
-                        closestPlayer = head
-                    end
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+                    if dist < shortestDist then shortestDist = dist; closest = head end
                 end
             end
         end
     end
-    return closestPlayer
+    return closest
 end
 
-local lastShootTime = 0
+local lastShoot = 0
 RunService.RenderStepped:Connect(function()
     if aimbotEnabled or autoShootEnabled then
         fovCircle.Visible = true
@@ -374,31 +328,15 @@ RunService.RenderStepped:Connect(function()
 
     if autoShootEnabled and player.Character then
         local tool = player.Character:FindFirstChildWhichIsA("Tool")
-        if tool then
-            local target = getClosestTarget()
-            if target and tick() - lastShootTime > 0.1 then
-                lastShootTime = tick()
-                pcall(function() tool:Activate() end)
-            end
+        if tool and getClosestTarget() and tick() - lastShoot > 0.1 then
+            lastShoot = tick()
+            pcall(function() tool:Activate() end)
         end
     end
 end)
 
 -- ==========================================
--- ФИЗИКА (СТАРЫЙ ЦИКЛ)
--- ==========================================
-RunService.Heartbeat:Connect(function()
-    if player.Character then
-        local hum = player.Character:FindFirstChild("Humanoid")
-        if hum then
-            if hum.WalkSpeed ~= desiredSpeed then hum.WalkSpeed = desiredSpeed end
-            if hum.JumpPower ~= desiredJump then hum.JumpPower = desiredJump; hum.UseJumpPower = true end
-        end
-    end
-end)
-
--- ==========================================
--- АВТО-ХИЛ
+-- 3. АВТО-ХИЛ
 -- ==========================================
 task.spawn(function()
     while task.wait(0.5) do 
@@ -429,7 +367,48 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- МОМЕНТАЛЬНЫЙ АВТО-ВЗЛОМ (СПАМ КАМНЕЙ)
+-- 4. АВТО-ФАРМ БАНКА
+-- ==========================================
+task.spawn(function()
+    while task.wait(0.3) do 
+        if autoFarmBank and player.Character then
+            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local parts = Workspace:GetPartBoundsInRadius(hrp.Position, 500)
+                local targetObj = nil
+                local shortestDist = 500
+                for _, part in ipairs(parts) do
+                    local obj = part
+                    if part.Parent and part.Parent:IsA("Model") then obj = part.Parent end
+                    local n = obj.Name:lower()
+                    if (n == "bankcash" or n == "cash" or n == "money" or n == "moneydrop") then
+                        if not (n:find("register") or n:find("atm") or n:find("cashier") or n:find("safe")) then
+                            local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
+                            if pos then
+                                local dist = (pos - hrp.Position).Magnitude
+                                if dist < shortestDist then shortestDist = dist; targetObj = obj end
+                            end
+                        end
+                    end
+                end
+                if targetObj then
+                    local targetPos = targetObj:IsA("BasePart") and targetObj.Position or (targetObj.PrimaryPart and targetObj.PrimaryPart.Position)
+                    if targetPos then
+                        hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
+                        task.wait(0.05) 
+                        local prompt = targetObj:FindFirstChildWhichIsA("ProximityPrompt", true)
+                        if prompt then pcall(function() fireproximityprompt(prompt) end) end
+                        local click = targetObj:FindFirstChildWhichIsA("ClickDetector", true)
+                        if click then pcall(function() fireclickdetector(click) end) end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ==========================================
+-- 5. АВТО-ВЗЛОМ СЕЙФОВ (МОМЕНТАЛЬНЫЙ)
 -- ==========================================
 local function doSafeFarm()
     local char = player.Character
@@ -438,7 +417,6 @@ local function doSafeFarm()
 
     local startPos = hrp.CFrame
     local safes = {}
-    
     local parts = Workspace:GetPartBoundsInRadius(hrp.Position, 1000)
     local checked = {}
     
@@ -456,94 +434,64 @@ local function doSafeFarm()
         end
     end
 
-    if #safes == 0 then
-        notify("Сейфы не найдены рядом!")
-        return
-    end
-
-    notify("Найдено сейфов: " .. #safes)
+    if #safes == 0 then return end
 
     for i, safe in ipairs(safes) do
         if not autoSafeFarm then break end
-
         local targetPart = safe.PrimaryPart or safe:FindFirstChildWhichIsA("BasePart") or safe:FindFirstChild("Hitbox")
         if targetPart then
-            notify("Сейф " .. i .. ": Взлом")
             pcall(function() hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 1, 2)) end)
-            task.wait(0.3) 
+            task.wait(0.2) 
             
             local prompt = safe:FindFirstChildWhichIsA("ProximityPrompt", true) or targetPart:FindFirstChildWhichIsA("ProximityPrompt", true)
             if prompt then
                 pcall(function() fireproximityprompt(prompt) end)
-                pcall(function()
-                    VirtualUser:CaptureController()
-                    VirtualUser:KeyDown(Enum.KeyCode.E)
-                end)
+                pcall(function() VirtualUser:CaptureController(); VirtualUser:KeyDown(Enum.KeyCode.E) end)
             end
-            
-            task.wait(0.5) -- Ждем немного, чтобы сейф начал открываться
+            task.wait(0.5) 
             pcall(function() VirtualUser:KeyUp(Enum.KeyCode.E) end)
             
-            notify("Сейф " .. i .. ": Моментальный сбор...")
-            
-            -- СПАМ-ЦИКЛ: 20 раз в секунду пытаемся все собрать
-            local farmTime = tick() + 3 -- Собираем 3 секунды
+            -- Моментальный спам-сбор (3 секунды)
+            local farmTime = tick() + 3 
             while tick() < farmTime do
                 if not autoSafeFarm then break end
-
                 local lootParts = Workspace:GetPartBoundsInRadius(targetPart.Position, 30)
-                
                 for _, lootPart in ipairs(lootParts) do
                     local pName = lootPart.Name:lower()
-                    
-                    -- ПРОВЕРКА ПО ТОЧНОМУ СПИСКУ ИЗ ТВОЕГО СООБЩЕНИЯ
                     if EXACT_GEMS[pName] then
                         pcall(function()
-                            -- Касание (самый быстрый способ)
                             if firetouchinterest then
                                 firetouchinterest(hrp, lootPart, 0)
                                 task.wait(0.01)
                                 firetouchinterest(hrp, lootPart, 1)
                             end
-                            
-                            -- Промпт (кнопка E)
                             local lootPrompt = lootPart:FindFirstChildWhichIsA("ProximityPrompt", true) or (lootPart.Parent and lootPart.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
                             if lootPrompt then fireproximityprompt(lootPrompt) end
-                            
-                            -- Клик
                             local lootClick = lootPart:FindFirstChildWhichIsA("ClickDetector", true) or (lootPart.Parent and lootPart.Parent:FindFirstChildWhichIsA("ClickDetector", true))
                             if lootClick then fireclickdetector(lootClick) end
-                            
-                            -- Телепорт прямо в камень (если не собрался касанием)
                             hrp.CFrame = CFrame.new(lootPart.Position)
                         end)
                     end
                 end
-                task.wait(0.05) -- Задержка между волнами спама
+                task.wait(0.05) 
             end
         end
     end
-
-    notify("Возврат на место...")
     task.wait(0.2)
     pcall(function() hrp.CFrame = startPos end)
-    notify("Готово!")
 end
 
 task.spawn(function()
     while task.wait(1) do 
         if autoSafeFarm and not isSafeFarming then
             isSafeFarming = true
-            task.spawn(function()
-                pcall(doSafeFarm)
-                isSafeFarming = false
-            end)
+            task.spawn(function() pcall(doSafeFarm); isSafeFarming = false end)
         end
     end
 end)
 
 -- ==========================================
--- ESP НА ИГРОКОВ
+-- 6. ESP НА ИГРОКОВ
 -- ==========================================
 local espFolder = Instance.new("Folder", Workspace)
 
@@ -554,7 +502,6 @@ local function createPlayerESP(otherPlayer)
     if not hrp then return end
 
     local bb = Instance.new("BillboardGui")
-    bb.Name = otherPlayer.Name .. "_ESP"
     bb.Size = UDim2.new(0, 180, 0, 80) 
     bb.StudsOffset = Vector3.new(0, 4, 0) 
     bb.AlwaysOnTop = true
@@ -584,7 +531,6 @@ local function createPlayerESP(otherPlayer)
     infoLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     infoLabel.Font = Enum.Font.GothamBold
     infoLabel.TextSize = 10
-    infoLabel.Text = "Загрузка..."
     infoLabel.Parent = textBg
 
     trackedPlayers[otherPlayer] = {bb = bb, label = infoLabel, box = box}
@@ -601,11 +547,9 @@ RunService.Heartbeat:Connect(function()
             data.bb.Enabled = true
             local hum = char:FindFirstChild("Humanoid")
             local hp = hum and math.floor(hum.Health) or 0
-            
             local shield = 0
             local shVal = char:FindFirstChild("Shield") or char:FindFirstChild("Armor")
             if shVal and shVal:IsA("ValueBase") then shield = math.floor(shVal.Value) end
-
             local tool = char:FindFirstChildWhichIsA("Tool")
             local toolName = tool and tool.Name or "Кулаки"
             
@@ -631,7 +575,7 @@ Players.PlayerRemoving:Connect(function(p)
 end)
 
 -- ==========================================
--- ESP НА ПРЕДМЕТЫ (ДЛЯ КАМНЕЙ ТОЖЕ)
+-- 7. ESP НА ПРЕДМЕТЫ И КАМНИ
 -- ==========================================
 local function createItemVisual(obj, color, category)
     if trackedItems[obj] then return end
@@ -666,7 +610,7 @@ task.spawn(function()
                     if not (n:find("wall") or n:find("floor") or n:find("mesh") or n:find("door") or #obj.Name > 25) then
                         local isGun = n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("deagle")
                         local isFood = n:find("food") or n:find("аптеч") or n:find("повяз") or n:find("medkit")
-                        local isJewel = EXACT_GEMS[n] -- ИСПОЛЬЗУЕМ ТОЧНЫЙ СПИСОК
+                        local isJewel = EXACT_GEMS[n]
 
                         if espToggles.ShopWeapon and isGun and (obj:FindFirstChild("Price") or obj:FindFirstChildWhichIsA("NumberValue")) then
                             createItemVisual(obj, ESP_COLORS.ShopWeapon, "ShopWeapon"); count = count + 1
@@ -684,49 +628,6 @@ task.spawn(function()
                     end
                 end
                 if count > 30 then break end
-            end
-        end
-    end
-end)
-
--- ==========================================
--- АВТО-ФАРМ БАНКА (ДЕНЬГИ)
--- ==========================================
-task.spawn(function()
-    while task.wait(0.3) do 
-        if autoFarmBank and player.Character then
-            local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local parts = Workspace:GetPartBoundsInRadius(hrp.Position, 500)
-                local targetObj = nil
-                local shortestDist = 500
-                
-                for _, part in ipairs(parts) do
-                    local obj = part
-                    if part.Parent and part.Parent:IsA("Model") then obj = part.Parent end
-                    local n = obj.Name:lower()
-                    if (n == "bankcash" or n == "cash" or n == "money" or n == "moneydrop") then
-                        if not (n:find("register") or n:find("atm") or n:find("cashier") or n:find("safe")) then
-                            local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
-                            if pos then
-                                local dist = (pos - hrp.Position).Magnitude
-                                if dist < shortestDist then shortestDist = dist; targetObj = obj end
-                            end
-                        end
-                    end
-                end
-                
-                if targetObj then
-                    local targetPos = targetObj:IsA("BasePart") and targetObj.Position or (targetObj.PrimaryPart and targetObj.PrimaryPart.Position)
-                    if targetPos then
-                        hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
-                        task.wait(0.05) 
-                        local prompt = targetObj:FindFirstChildWhichIsA("ProximityPrompt", true)
-                        if prompt then pcall(function() fireproximityprompt(prompt) end) end
-                        local click = targetObj:FindFirstChildWhichIsA("ClickDetector", true)
-                        if click then pcall(function() fireclickdetector(click) end) end
-                    end
-                end
             end
         end
     end
