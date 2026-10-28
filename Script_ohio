@@ -7,7 +7,7 @@ local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local camera = Workspace.CurrentCamera
 
--- Настройки
+-- НАСТРОЙКИ
 local autoFarmBank = false
 local autoSafeFarm = false
 local aimbotEnabled = false
@@ -22,13 +22,26 @@ local isSafeFarming = false
 local trackedItems = {}
 local trackedPlayers = {}
 
-local GEM_KEYWORDS = { "emerald", "topaz", "amethyst", "sapphire", "ruby", "diamond", "void gem", "dark matter gem", "gem" }
+-- ТОЧНЫЕ СПИСКИ ИЗ ТВОЕГО ФАЙЛА
+local GUNS = { 
+    ["m1911"]=true, ["glock"]=true, ["glock 18"]=true, ["diamond glock"]=true, ["usp 45"]=true, ["python"]=true, ["deagle"]=true, ["golden deagle"]=true, 
+    ["mossberg"]=true, ["double barrel"]=true, ["sawn off"]=true, ["stagecoach"]=true, ["saiga 12"]=true, 
+    ["uzi"]=true, ["mp7"]=true, ["tommy gun"]=true, ["ar-15"]=true, ["ak-47"]=true, ["golden ak-47"]=true, ["m4a1"]=true, ["aug"]=true, ["scar l"]=true, ["as val"]=true, 
+    ["dragunov"]=true, ["m1 garand"]=true, ["m249 saw"]=true, ["barrett m107"]=true, ["rpg"]=true, 
+    ["flamethrower"]=true, ["acid gun"]=true, ["raygun"]=true, ["pulse rifle"]=true, ["money gun"]=true, ["gravity gun"]=true, ["taser gun"]=true 
+}
+local CARDS = { ["red card"]=true, ["red keycard"]=true, ["blue card"]=true, ["blue keycard"]=true }
+local RARE = { ["scythe"]=true, ["cash register"]=true, ["atm"]=true, ["money printer"]=true, ["crusader keys"]=true, ["safes"]=true, ["safe"]=true, ["suitcase nuke"]=true, ["lockpick"]=true, ["component box"]=true, ["c4"]=true }
+local ARMOR = { ["light vest"]=true, ["medium vest"]=true, ["heavy vest"]=true, ["military vest"]=true }
+local MEDS = { ["bandage"]=true, ["medkit"]=true, ["med kit"]=true }
+local GEMS = { ["emerald"]=true, ["topaz"]=true, ["amethyst"]=true, ["sapphire"]=true, ["ruby"]=true, ["diamond"]=true, ["void gem"]=true, ["dark matter gem"]=true }
 
-local espToggles = { Players = false, ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, Jewel = false }
+local espToggles = { Players = false, Guns = false, Cards = false, Rare = false, Armor = false, Meds = false, Gems = false, Money = false }
 local ESP_COLORS = {
-    ShopWeapon = Color3.fromRGB(255, 100, 100), DropWeapon = Color3.fromRGB(200, 0, 0),
-    Armor = Color3.fromRGB(50, 150, 255), Money = Color3.fromRGB(255, 200, 0), Food = Color3.fromRGB(0, 255, 150),
-    Jewel = Color3.fromRGB(0, 255, 255), Players = Color3.fromRGB(255, 255, 255)
+    Guns = Color3.fromRGB(255, 100, 100), Cards = Color3.fromRGB(255, 0, 255),
+    Rare = Color3.fromRGB(255, 150, 0), Armor = Color3.fromRGB(50, 150, 255), 
+    Meds = Color3.fromRGB(0, 255, 150), Gems = Color3.fromRGB(0, 255, 255), 
+    Players = Color3.fromRGB(255, 255, 255), Money = Color3.fromRGB(255, 200, 0)
 }
 
 -- ==========================================
@@ -57,7 +70,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu (Instant)"
+titleText.Text = "ROCKET | Ohio Menu (All ESP)"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 16
@@ -84,7 +97,7 @@ contentFrame.Parent = mainFrame
 local isOpen = false
 arrowBtn.MouseButton1Click:Connect(function()
     isOpen = not isOpen
-    mainFrame.Size = UDim2.new(0, 400, 0, isOpen and 450 or 40)
+    mainFrame.Size = UDim2.new(0, 400, 0, isOpen and 480 or 40)
     arrowBtn.Text = isOpen and "▲" or "▼"
     contentFrame.Visible = isOpen
 end)
@@ -130,7 +143,7 @@ local function createPage(name)
     frame.Size = UDim2.new(1, 0, 1, 0)
     frame.BackgroundTransparency = 1
     frame.BorderSizePixel = 0
-    frame.ScrollBarThickness = 2
+    frame.ScrollBarThickness = 3
     frame.Visible = false
     frame.Parent = pageContainer
     local layout = Instance.new("UIListLayout", frame)
@@ -215,16 +228,17 @@ local function createStatSetting(parent, label, defaultVal, callback)
 end
 
 -- ЗАПОЛНЕНИЕ ВКЛАДОК
-createToggleButton(pageMain, "Авто-Фарм Банка", false, Color3.fromRGB(0, 200, 100), function(s) autoFarmBank = s end)
-createToggleButton(pageMain, "Авто-Взлом Сейфов", false, Color3.fromRGB(255, 150, 0), function(s) autoSafeFarm = s end)
+createToggleButton(pageMain, "Авто-Фарм Банка", false, Color3.fromRGB(255, 200, 0), function(s) autoFarmBank = s end)
+createToggleButton(pageMain, "Авто-Взлом Сейфов", false, Color3.fromRGB(0, 200, 100), function(s) autoSafeFarm = s end)
 
 createToggleButton(pageESP, "Игроки (Инфо)", false, ESP_COLORS.Players, function(s) espToggles.Players = s end)
-createToggleButton(pageESP, "Оружие (Магазин)", false, ESP_COLORS.ShopWeapon, function(s) espToggles.ShopWeapon = s end)
-createToggleButton(pageESP, "Оружие (Дроп)", false, ESP_COLORS.DropWeapon, function(s) espToggles.DropWeapon = s end)
-createToggleButton(pageESP, "Броня", false, ESP_COLORS.Armor, function(s) espToggles.Armor = s end)
-createToggleButton(pageESP, "Деньги", false, ESP_COLORS.Money, function(s) espToggles.Money = s end)
-createToggleButton(pageESP, "Еда", false, ESP_COLORS.Food, function(s) espToggles.Food = s end)
-createToggleButton(pageESP, "Камни (Драгоценности)", false, ESP_COLORS.Jewel, function(s) espToggles.Jewel = s end)
+createToggleButton(pageESP, "Оружие (Guns)", false, ESP_COLORS.Guns, function(s) espToggles.Guns = s end)
+createToggleButton(pageESP, "Карточки (Cards)", false, ESP_COLORS.Cards, function(s) espToggles.Cards = s end)
+createToggleButton(pageESP, "Редкие (Rare)", false, ESP_COLORS.Rare, function(s) espToggles.Rare = s end)
+createToggleButton(pageESP, "Броня (Armor)", false, ESP_COLORS.Armor, function(s) espToggles.Armor = s end)
+createToggleButton(pageESP, "Аптечки (Meds)", false, ESP_COLORS.Meds, function(s) espToggles.Meds = s end)
+createToggleButton(pageESP, "Камни (Gems)", false, ESP_COLORS.Gems, function(s) espToggles.Gems = s end)
+createToggleButton(pageESP, "Деньги (Money)", false, ESP_COLORS.Money, function(s) espToggles.Money = s end)
 
 createStatSetting(pageHuman, "Скорость:", 16, function(val) desiredSpeed = val end)
 createStatSetting(pageHuman, "Прыжок:", 50, function(val) desiredJump = val end)
@@ -262,7 +276,7 @@ end)
 switchTab("main")
 
 -- ==========================================
--- ФИЗИКА
+-- ФИЗИКА (Скорость и Прыжок)
 -- ==========================================
 RunService.Heartbeat:Connect(function()
     if player.Character then
@@ -334,7 +348,7 @@ end)
 -- АВТО-ХИЛ
 -- ==========================================
 task.spawn(function()
-    while task.wait(0.5) do 
+    while task.wait(0.3) do 
         if autoHealEnabled and player.Character and not isHealing then
             local hum = player.Character:FindFirstChild("Humanoid")
             if hum and hum.Health > 0 and hum.Health < healThreshold then
@@ -343,7 +357,7 @@ task.spawn(function()
                     for _, item in ipairs(backpack:GetChildren()) do
                         if item:IsA("Tool") then
                             local n = item.Name:lower()
-                            if n:find("аптеч") or n:find("повяз") or n:find("бинт") then
+                            if MEDS[n] then
                                 isHealing = true
                                 item.Parent = player.Character
                                 task.wait(0.2) 
@@ -362,22 +376,23 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- АВТО-ФАРМ БАНКА
+-- АВТО-ФАРМ БАНКА (Деньги)
 -- ==========================================
 task.spawn(function()
-    while task.wait(0.3) do 
+    while task.wait(0.2) do 
         if autoFarmBank and player.Character then
             local hrp = player.Character:FindFirstChild("HumanoidRootPart")
             if hrp then
                 local parts = Workspace:GetPartBoundsInRadius(hrp.Position, 500)
                 local targetObj = nil
                 local shortestDist = 500
+                
                 for _, part in ipairs(parts) do
                     local obj = part
                     if part.Parent and part.Parent:IsA("Model") then obj = part.Parent end
                     local n = obj.Name:lower()
-                    if (n == "bankcash" or n == "cash" or n == "money" or n == "moneydrop") then
-                        if not (n:find("register") or n:find("atm") or n:find("cashier") or n:find("safe")) then
+                    if n:find("cash") or n:find("money") then
+                        if not (n:find("register") or n:find("atm") or n:find("printer")) then
                             local pos = obj:IsA("BasePart") and obj.Position or (obj.PrimaryPart and obj.PrimaryPart.Position)
                             if pos then
                                 local dist = (pos - hrp.Position).Magnitude
@@ -386,10 +401,11 @@ task.spawn(function()
                         end
                     end
                 end
+                
                 if targetObj then
                     local targetPos = targetObj:IsA("BasePart") and targetObj.Position or (targetObj.PrimaryPart and targetObj.PrimaryPart.Position)
                     if targetPos then
-                        hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
+                        hrp.CFrame = CFrame.new(targetPos + Vector3.new(0, 2, 0))
                         task.wait(0.05) 
                         local prompt = targetObj:FindFirstChildWhichIsA("ProximityPrompt", true)
                         if prompt then pcall(function() fireproximityprompt(prompt) end) end
@@ -403,7 +419,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- МОМЕНТАЛЬНЫЙ ВЗЛОМ СЕЙФОВ (СБОР ПРЯМО ВО ВРЕМЯ ВЗЛОМА)
+-- ВЗЛОМ СЕЙФОВ (Стабильный + Точные камни)
 -- ==========================================
 local function doSafeFarm()
     local char = player.Character
@@ -435,59 +451,44 @@ local function doSafeFarm()
         if not autoSafeFarm then break end
         local targetPart = safe.PrimaryPart or safe:FindFirstChildWhichIsA("BasePart") or safe:FindFirstChild("Hitbox")
         if targetPart then
-            -- 1. Телепорт к сейфу
             pcall(function() hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 1, 2)) end)
-            task.wait(0.1) 
+            task.wait(0.3) 
             
-            -- 2. Начинаем взлом (зажимаем E)
             local prompt = safe:FindFirstChildWhichIsA("ProximityPrompt", true) or targetPart:FindFirstChildWhichIsA("ProximityPrompt", true)
             if prompt then
                 pcall(function() fireproximityprompt(prompt) end)
                 pcall(function() VirtualUser:CaptureController(); VirtualUser:KeyDown(Enum.KeyCode.E) end)
             end
+            task.wait(0.5) 
+            pcall(function() VirtualUser:KeyUp(Enum.KeyCode.E) end)
             
-            -- 3. МОМЕНТАЛЬНЫЙ СБОР (Спамим касаниями 2.5 секунды, пока идет взлом)
-            local farmTime = tick() + 2.5
-            while tick() < farmTime do
+            task.wait(1.5) 
+            
+            for wave = 1, 5 do
                 if not autoSafeFarm then break end
-                local lootParts = Workspace:GetPartBoundsInRadius(targetPart.Position, 25)
+                local lootParts = Workspace:GetPartBoundsInRadius(targetPart.Position, 30)
                 
                 for _, lootPart in ipairs(lootParts) do
                     local pName = lootPart.Name:lower()
                     local mName = lootPart.Parent and lootPart.Parent.Name:lower() or ""
                     
-                    local isGem = false
-                    for _, kw in ipairs(GEM_KEYWORDS) do
-                        if pName:find(kw) or mName:find(kw) then
-                            isGem = true
-                            break
-                        end
-                    end
-                    
-                    if isGem then
+                    if GEMS[pName] or GEMS[mName] then
                         pcall(function()
-                            -- Моментальное касание
                             if firetouchinterest then
                                 firetouchinterest(hrp, lootPart, 0)
+                                task.wait(0.01)
                                 firetouchinterest(hrp, lootPart, 1)
                             end
-                            
-                            -- Клик и кнопка E
                             local lootPrompt = lootPart:FindFirstChildWhichIsA("ProximityPrompt", true) or (lootPart.Parent and lootPart.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
                             if lootPrompt then fireproximityprompt(lootPrompt) end
                             local lootClick = lootPart:FindFirstChildWhichIsA("ClickDetector", true) or (lootPart.Parent and lootPart.Parent:FindFirstChildWhichIsA("ClickDetector", true))
                             if lootClick then fireclickdetector(lootClick) end
-                            
-                            -- Телепорт на камень (на случай если касание не сработало)
                             hrp.CFrame = CFrame.new(lootPart.Position)
                         end)
                     end
                 end
-                task.wait() -- Ждем 1 кадр (моментально)
+                task.wait(0.2) 
             end
-            
-            -- 4. Отпускаем E (взлом завершен)
-            pcall(function() VirtualUser:KeyUp(Enum.KeyCode.E) end)
         end
     end
     task.wait(0.2)
@@ -588,7 +589,7 @@ Players.PlayerRemoving:Connect(function(p)
 end)
 
 -- ==========================================
--- ESP НА ПРЕДМЕТЫ
+-- ESP НА ПРЕДМЕТЫ (СТРОГО ПО СПИСКАМ)
 -- ==========================================
 local function createItemVisual(obj, color, category)
     if trackedItems[obj] then return end
@@ -620,31 +621,27 @@ task.spawn(function()
                 if not checked[obj] and not trackedItems[obj] and not isPlayer then
                     checked[obj] = true
                     local n = obj.Name:lower()
-                    if not (n:find("wall") or n:find("floor") or n:find("mesh") or n:find("door") or #obj.Name > 25) then
-                        local isGun = n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("deagle")
-                        local isFood = n:find("food") or n:find("аптеч") or n:find("повяз") or n:find("medkit")
-                        
-                        local isJewel = false
-                        for _, kw in ipairs(GEM_KEYWORDS) do
-                            if n:find(kw) then isJewel = true break end
-                        end
-
-                        if espToggles.ShopWeapon and isGun and (obj:FindFirstChild("Price") or obj:FindFirstChildWhichIsA("NumberValue")) then
-                            createItemVisual(obj, ESP_COLORS.ShopWeapon, "ShopWeapon"); count = count + 1
-                        elseif espToggles.DropWeapon and isGun and not (obj:FindFirstChild("Price")) then
-                            createItemVisual(obj, ESP_COLORS.DropWeapon, "DropWeapon"); count = count + 1
-                        elseif espToggles.Food and isFood then
-                            createItemVisual(obj, ESP_COLORS.Food, "Food"); count = count + 1
-                        elseif espToggles.Money and (n == "cash" or n == "money" or n:find("bankcash")) then
+                    local mName = obj.Parent and obj.Parent.Name:lower() or ""
+                    
+                    if GUNS[n] or GUNS[mName] then
+                        if espToggles.Guns then createItemVisual(obj, ESP_COLORS.Guns, "Guns"); count = count + 1 end
+                    elseif CARDS[n] or CARDS[mName] then
+                        if espToggles.Cards then createItemVisual(obj, ESP_COLORS.Cards, "Cards"); count = count + 1 end
+                    elseif RARE[n] or RARE[mName] then
+                        if espToggles.Rare then createItemVisual(obj, ESP_COLORS.Rare, "Rare"); count = count + 1 end
+                    elseif ARMOR[n] or ARMOR[mName] then
+                        if espToggles.Armor then createItemVisual(obj, ESP_COLORS.Armor, "Armor"); count = count + 1 end
+                    elseif MEDS[n] or MEDS[mName] then
+                        if espToggles.Meds then createItemVisual(obj, ESP_COLORS.Meds, "Meds"); count = count + 1 end
+                    elseif GEMS[n] or GEMS[mName] then
+                        if espToggles.Gems then createItemVisual(obj, ESP_COLORS.Gems, "Gems"); count = count + 1 end
+                    elseif n:find("cash") or n:find("money") then
+                        if espToggles.Money and not (n:find("register") or n:find("atm") or n:find("printer")) then
                             createItemVisual(obj, ESP_COLORS.Money, "Money"); count = count + 1
-                        elseif espToggles.Armor and (n:find("armor") or n:find("vest") or n:find("жилет")) then
-                            createItemVisual(obj, ESP_COLORS.Armor, "Armor"); count = count + 1
-                        elseif espToggles.Jewel and isJewel then
-                            createItemVisual(obj, ESP_COLORS.Jewel, "Jewel"); count = count + 1
                         end
                     end
                 end
-                if count > 30 then break end
+                if count > 40 then break end
             end
         end
     end
