@@ -22,7 +22,8 @@ local isSafeFarming = false
 local trackedItems = {}
 local trackedPlayers = {}
 
-local EXACT_GEMS = { ["emerald"] = true, ["topaz"] = true, ["amethyst"] = true, ["sapphire"] = true, ["ruby"] = true, ["diamond"] = true, ["void gem"] = true, ["dark matter gem"] = true }
+local GEM_KEYWORDS = { "emerald", "topaz", "amethyst", "sapphire", "ruby", "diamond", "void gem", "dark matter gem", "gem" }
+
 local espToggles = { Players = false, ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, Jewel = false }
 local ESP_COLORS = {
     ShopWeapon = Color3.fromRGB(255, 100, 100), DropWeapon = Color3.fromRGB(200, 0, 0),
@@ -56,7 +57,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu (Full)"
+titleText.Text = "ROCKET | Ohio Menu (Instant)"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 16
@@ -88,7 +89,6 @@ arrowBtn.MouseButton1Click:Connect(function()
     contentFrame.Visible = isOpen
 end)
 
--- Перетаскивание
 local dragging, dragInput, dragStart, startPos
 titleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true; dragStart = input.Position; startPos = mainFrame.Position end
@@ -106,7 +106,6 @@ UserInputService.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
 end)
 
--- Вкладки
 local tabBar = Instance.new("Frame")
 tabBar.Size = UDim2.new(1, -20, 0, 30)
 tabBar.Position = UDim2.new(0, 10, 0, 10)
@@ -263,7 +262,7 @@ end)
 switchTab("main")
 
 -- ==========================================
--- 1. ФИЗИКА (Скорость и Прыжок)
+-- ФИЗИКА
 -- ==========================================
 RunService.Heartbeat:Connect(function()
     if player.Character then
@@ -276,7 +275,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ==========================================
--- 2. АИМБОТ И FOV
+-- АИМБОТ
 -- ==========================================
 local fovCircle = Instance.new("Frame")
 fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
@@ -287,9 +286,7 @@ fovCircle.BorderSizePixel = 0
 fovCircle.Visible = false
 fovCircle.Parent = screenGui
 Instance.new("UICorner", fovCircle).CornerRadius = UDim.new(1, 0)
-local circleStroke = Instance.new("UIStroke", fovCircle)
-circleStroke.Color = Color3.fromRGB(255, 50, 50)
-circleStroke.Transparency = 0.3
+Instance.new("UIStroke", fovCircle).Color = Color3.fromRGB(255, 50, 50)
 
 local function getClosestTarget()
     local closest = nil
@@ -321,9 +318,7 @@ RunService.RenderStepped:Connect(function()
 
     if aimbotEnabled then
         local target = getClosestTarget()
-        if target then
-            camera.CFrame = CFrame.new(camera.CFrame.Position, target.Position)
-        end
+        if target then camera.CFrame = CFrame.new(camera.CFrame.Position, target.Position) end
     end
 
     if autoShootEnabled and player.Character then
@@ -336,7 +331,7 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==========================================
--- 3. АВТО-ХИЛ
+-- АВТО-ХИЛ
 -- ==========================================
 task.spawn(function()
     while task.wait(0.5) do 
@@ -367,7 +362,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 4. АВТО-ФАРМ БАНКА
+-- АВТО-ФАРМ БАНКА
 -- ==========================================
 task.spawn(function()
     while task.wait(0.3) do 
@@ -408,7 +403,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 5. АВТО-ВЗЛОМ СЕЙФОВ (МОМЕНТАЛЬНЫЙ)
+-- МОМЕНТАЛЬНЫЙ ВЗЛОМ СЕЙФОВ (СБОР ПРЯМО ВО ВРЕМЯ ВЗЛОМА)
 -- ==========================================
 local function doSafeFarm()
     local char = player.Character
@@ -440,41 +435,59 @@ local function doSafeFarm()
         if not autoSafeFarm then break end
         local targetPart = safe.PrimaryPart or safe:FindFirstChildWhichIsA("BasePart") or safe:FindFirstChild("Hitbox")
         if targetPart then
+            -- 1. Телепорт к сейфу
             pcall(function() hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 1, 2)) end)
-            task.wait(0.2) 
+            task.wait(0.1) 
             
+            -- 2. Начинаем взлом (зажимаем E)
             local prompt = safe:FindFirstChildWhichIsA("ProximityPrompt", true) or targetPart:FindFirstChildWhichIsA("ProximityPrompt", true)
             if prompt then
                 pcall(function() fireproximityprompt(prompt) end)
                 pcall(function() VirtualUser:CaptureController(); VirtualUser:KeyDown(Enum.KeyCode.E) end)
             end
-            task.wait(0.5) 
-            pcall(function() VirtualUser:KeyUp(Enum.KeyCode.E) end)
             
-            -- Моментальный спам-сбор (3 секунды)
-            local farmTime = tick() + 3 
+            -- 3. МОМЕНТАЛЬНЫЙ СБОР (Спамим касаниями 2.5 секунды, пока идет взлом)
+            local farmTime = tick() + 2.5
             while tick() < farmTime do
                 if not autoSafeFarm then break end
-                local lootParts = Workspace:GetPartBoundsInRadius(targetPart.Position, 30)
+                local lootParts = Workspace:GetPartBoundsInRadius(targetPart.Position, 25)
+                
                 for _, lootPart in ipairs(lootParts) do
                     local pName = lootPart.Name:lower()
-                    if EXACT_GEMS[pName] then
+                    local mName = lootPart.Parent and lootPart.Parent.Name:lower() or ""
+                    
+                    local isGem = false
+                    for _, kw in ipairs(GEM_KEYWORDS) do
+                        if pName:find(kw) or mName:find(kw) then
+                            isGem = true
+                            break
+                        end
+                    end
+                    
+                    if isGem then
                         pcall(function()
+                            -- Моментальное касание
                             if firetouchinterest then
                                 firetouchinterest(hrp, lootPart, 0)
-                                task.wait(0.01)
                                 firetouchinterest(hrp, lootPart, 1)
                             end
+                            
+                            -- Клик и кнопка E
                             local lootPrompt = lootPart:FindFirstChildWhichIsA("ProximityPrompt", true) or (lootPart.Parent and lootPart.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
                             if lootPrompt then fireproximityprompt(lootPrompt) end
                             local lootClick = lootPart:FindFirstChildWhichIsA("ClickDetector", true) or (lootPart.Parent and lootPart.Parent:FindFirstChildWhichIsA("ClickDetector", true))
                             if lootClick then fireclickdetector(lootClick) end
+                            
+                            -- Телепорт на камень (на случай если касание не сработало)
                             hrp.CFrame = CFrame.new(lootPart.Position)
                         end)
                     end
                 end
-                task.wait(0.05) 
+                task.wait() -- Ждем 1 кадр (моментально)
             end
+            
+            -- 4. Отпускаем E (взлом завершен)
+            pcall(function() VirtualUser:KeyUp(Enum.KeyCode.E) end)
         end
     end
     task.wait(0.2)
@@ -491,7 +504,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- 6. ESP НА ИГРОКОВ
+-- ESP НА ИГРОКОВ
 -- ==========================================
 local espFolder = Instance.new("Folder", Workspace)
 
@@ -575,7 +588,7 @@ Players.PlayerRemoving:Connect(function(p)
 end)
 
 -- ==========================================
--- 7. ESP НА ПРЕДМЕТЫ И КАМНИ
+-- ESP НА ПРЕДМЕТЫ
 -- ==========================================
 local function createItemVisual(obj, color, category)
     if trackedItems[obj] then return end
@@ -610,7 +623,11 @@ task.spawn(function()
                     if not (n:find("wall") or n:find("floor") or n:find("mesh") or n:find("door") or #obj.Name > 25) then
                         local isGun = n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("deagle")
                         local isFood = n:find("food") or n:find("аптеч") or n:find("повяз") or n:find("medkit")
-                        local isJewel = EXACT_GEMS[n]
+                        
+                        local isJewel = false
+                        for _, kw in ipairs(GEM_KEYWORDS) do
+                            if n:find(kw) then isJewel = true break end
+                        end
 
                         if espToggles.ShopWeapon and isGun and (obj:FindFirstChild("Price") or obj:FindFirstChildWhichIsA("NumberValue")) then
                             createItemVisual(obj, ESP_COLORS.ShopWeapon, "ShopWeapon"); count = count + 1
