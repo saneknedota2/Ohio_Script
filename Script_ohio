@@ -23,6 +23,13 @@ local isSafeFarming = false
 local trackedItems = {}
 local trackedPlayers = {}
 
+-- ТОЧНЫЕ НАЗВАНИЯ КАМНЕЙ (ИЗ ТВОЕГО СПИСКА)
+local EXACT_GEMS = {
+    ["emerald"] = true, ["topaz"] = true, ["amethyst"] = true, 
+    ["sapphire"] = true, ["ruby"] = true, ["diamond"] = true,
+    ["void gem"] = true, ["dark matter gem"] = true
+}
+
 local espToggles = { ShopWeapon = false, DropWeapon = false, Armor = false, Money = false, Food = false, Jewel = false, Players = false }
 local ESP_COLORS = {
     ShopWeapon = Color3.fromRGB(255, 100, 100), DropWeapon = Color3.fromRGB(200, 0, 0),
@@ -85,7 +92,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu (Fix 2)"
+titleText.Text = "ROCKET | Ohio Menu (Instant Jewels)"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 16
@@ -247,7 +254,7 @@ local function createStatSetting(parent, label, defaultVal, callback)
         if num then callback(num) else txtBox.Text = tostring(defaultVal) end
     end
     txtBox.FocusLost:Connect(apply)
-    txtBox.ReturnPressedFromOnScreenKeyboard:Connect(apply)
+    txtBox.ReturnedPressedFromOnScreenKeyboard:Connect(apply)
 end
 
 -- Main
@@ -307,7 +314,7 @@ end)
 switchTab("main")
 
 -- ==========================================
--- ОТРИСОВКА КРУГА АИМБОТА
+-- КРУГ АИМБОТА
 -- ==========================================
 local fovCircle = Instance.new("Frame")
 fovCircle.Size = UDim2.new(0, fovRadius * 2, 0, fovRadius * 2)
@@ -422,7 +429,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- АВТО-ВЗЛОМ СЕЙФОВ (БЫСТРЫЙ ПОИСК)
+-- МОМЕНТАЛЬНЫЙ АВТО-ВЗЛОМ (СПАМ КАМНЕЙ)
 -- ==========================================
 local function doSafeFarm()
     local char = player.Character
@@ -432,7 +439,6 @@ local function doSafeFarm()
     local startPos = hrp.CFrame
     local safes = {}
     
-    -- Быстрый поиск сейфов в радиусе 1000 метров
     local parts = Workspace:GetPartBoundsInRadius(hrp.Position, 1000)
     local checked = {}
     
@@ -475,82 +481,51 @@ local function doSafeFarm()
                 end)
             end
             
-            task.wait(1) 
+            task.wait(0.5) -- Ждем немного, чтобы сейф начал открываться
             pcall(function() VirtualUser:KeyUp(Enum.KeyCode.E) end)
             
-            notify("Сейф " .. i .. ": Жду 1.5с...")
-            task.wait(1.5) 
+            notify("Сейф " .. i .. ": Моментальный сбор...")
             
-            notify("Сейф " .. i .. ": Сбор")
-            local emptyPasses = 0
-            
-            while emptyPasses < 3 do
+            -- СПАМ-ЦИКЛ: 20 раз в секунду пытаемся все собрать
+            local farmTime = tick() + 3 -- Собираем 3 секунды
+            while tick() < farmTime do
                 if not autoSafeFarm then break end
 
                 local lootParts = Workspace:GetPartBoundsInRadius(targetPart.Position, 30)
-                local found = false
                 
                 for _, lootPart in ipairs(lootParts) do
                     local pName = lootPart.Name:lower()
-                    local mName = lootPart.Parent and lootPart.Parent.Name:lower() or ""
                     
-                    local character = lootPart.Parent
-                    local isCharacter = false
-                    if character then
-                        if character:FindFirstChild("Humanoid") then isCharacter = true end
-                        if character.Parent and character.Parent:FindFirstChild("Humanoid") then isCharacter = true end
-                    end
-                    
-                    local isBodyPart = pName == "foot" or pName == "leg" or pName == "arm" or pName == "hand" or pName == "head" or pName == "torso" or pName == "leftfoot" or pName == "rightfoot"
-
-                    -- ЖЕСТКИЙ ИГНОР (Таблички, стены, ДЕНЬГИ, витрины, ЗАМКИ)
-                    local isJunk = pName:find("safe") or pName:find("main") or pName:find("door") or pName:find("hitbox") or pName:find("part") or 
-                                   pName:find("atm") or pName:find("register") or pName:find("stand") or pName:find("counter") or
-                                   pName:find("cash") or pName:find("money") or pName:find("dollar") or pName:find("bankcash") or
-                                   pName:find("glass") or pName:find("display") or pName:find("case") or 
-                                   pName:find("lock") or pName:find("plate") or pName:find("hinge") or pName:find("knob") or pName:find("handle") or
-                                   mName:find("safe") or mName:find("cash") or mName:find("glass") or mName:find("door")
-                    
-                    -- Предмет не должен быть приколочен к полу (замки приколочены, а лут падает)
-                    local isAnchored = lootPart.Anchored
-
-                    if not isCharacter and not isBodyPart and not isJunk and not isAnchored then
-                        local isPickable = lootPart:IsA("Tool") or (lootPart.Parent and lootPart.Parent:IsA("Tool")) or
-                                           lootPart:FindFirstChildWhichIsA("ClickDetector") or lootPart:FindFirstChildWhichIsA("ProximityPrompt") or
-                                           (lootPart.Parent and (lootPart.Parent:FindFirstChildWhichIsA("ClickDetector") or lootPart.Parent:FindFirstChildWhichIsA("ProximityPrompt")))
-
-                        if isPickable then
-                            found = true
-                            notify("Сбор: " .. pName)
-                            pcall(function()
-                                hrp.CFrame = CFrame.new(lootPart.Position)
-                                task.wait(0.15)
-                                
-                                local lootPrompt = lootPart:FindFirstChildWhichIsA("ProximityPrompt", true) or (lootPart.Parent and lootPart.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
-                                if lootPrompt then fireproximityprompt(lootPrompt) end
-                                
-                                local lootClick = lootPart:FindFirstChildWhichIsA("ClickDetector", true) or (lootPart.Parent and lootPart.Parent:FindFirstChildWhichIsA("ClickDetector", true))
-                                if lootClick then fireclickdetector(lootClick) end
-                                
-                                if firetouchinterest then
-                                    firetouchinterest(hrp, lootPart, 0)
-                                    task.wait(0.05)
-                                    firetouchinterest(hrp, lootPart, 1)
-                                end
-                            end)
-                            break
-                        end
+                    -- ПРОВЕРКА ПО ТОЧНОМУ СПИСКУ ИЗ ТВОЕГО СООБЩЕНИЯ
+                    if EXACT_GEMS[pName] then
+                        pcall(function()
+                            -- Касание (самый быстрый способ)
+                            if firetouchinterest then
+                                firetouchinterest(hrp, lootPart, 0)
+                                task.wait(0.01)
+                                firetouchinterest(hrp, lootPart, 1)
+                            end
+                            
+                            -- Промпт (кнопка E)
+                            local lootPrompt = lootPart:FindFirstChildWhichIsA("ProximityPrompt", true) or (lootPart.Parent and lootPart.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
+                            if lootPrompt then fireproximityprompt(lootPrompt) end
+                            
+                            -- Клик
+                            local lootClick = lootPart:FindFirstChildWhichIsA("ClickDetector", true) or (lootPart.Parent and lootPart.Parent:FindFirstChildWhichIsA("ClickDetector", true))
+                            if lootClick then fireclickdetector(lootClick) end
+                            
+                            -- Телепорт прямо в камень (если не собрался касанием)
+                            hrp.CFrame = CFrame.new(lootPart.Position)
+                        end)
                     end
                 end
-                
-                if not found then emptyPasses = emptyPasses + 1 else emptyPasses = 0 end
-                task.wait(0.2)
+                task.wait(0.05) -- Задержка между волнами спама
             end
         end
     end
 
     notify("Возврат на место...")
-    task.wait(0.3)
+    task.wait(0.2)
     pcall(function() hrp.CFrame = startPos end)
     notify("Готово!")
 end
@@ -656,7 +631,7 @@ Players.PlayerRemoving:Connect(function(p)
 end)
 
 -- ==========================================
--- ESP НА ПРЕДМЕТЫ
+-- ESP НА ПРЕДМЕТЫ (ДЛЯ КАМНЕЙ ТОЖЕ)
 -- ==========================================
 local function createItemVisual(obj, color, category)
     if trackedItems[obj] then return end
@@ -691,7 +666,7 @@ task.spawn(function()
                     if not (n:find("wall") or n:find("floor") or n:find("mesh") or n:find("door") or #obj.Name > 25) then
                         local isGun = n:find("gun") or n:find("ak47") or n:find("m4") or n:find("pistol") or n:find("deagle")
                         local isFood = n:find("food") or n:find("аптеч") or n:find("повяз") or n:find("medkit")
-                        local isJewel = n:find("jewel") or n:find("gem") or n:find("diamond") or n:find("ring") or n:find("gold")
+                        local isJewel = EXACT_GEMS[n] -- ИСПОЛЬЗУЕМ ТОЧНЫЙ СПИСОК
 
                         if espToggles.ShopWeapon and isGun and (obj:FindFirstChild("Price") or obj:FindFirstChildWhichIsA("NumberValue")) then
                             createItemVisual(obj, ESP_COLORS.ShopWeapon, "ShopWeapon"); count = count + 1
