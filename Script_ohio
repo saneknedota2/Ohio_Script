@@ -70,7 +70,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu"
+titleText.Text = "ROCKET | Ohio Menu (Spam Fix)"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 16
@@ -224,7 +224,7 @@ local function createStatSetting(parent, label, defaultVal, callback)
         if num then callback(num) else txtBox.Text = tostring(defaultVal) end
     end
     txtBox.FocusLost:Connect(apply)
-    txtBox.ReturnPressedFromOnScreenKeyboard:Connect(apply)
+    txtBox.ReturnedPressedFromOnScreenKeyboard:Connect(apply)
 end
 
 -- ЗАПОЛНЕНИЕ
@@ -276,7 +276,7 @@ end)
 switchTab("main")
 
 -- ==========================================
--- ФИЗИКА (ПРОСТОЙ ЦИКЛ, КАК РАНЬШЕ)
+-- ФИЗИКА
 -- ==========================================
 RunService.Heartbeat:Connect(function()
     if player.Character then
@@ -419,7 +419,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- ВЗЛОМ СЕЙФОВ
+-- СПАМ-ВЗЛОМ СЕЙФОВ (БЕЗ ВОЛН)
 -- ==========================================
 local function doSafeFarm()
     local char = player.Character
@@ -452,19 +452,18 @@ local function doSafeFarm()
         local targetPart = safe.PrimaryPart or safe:FindFirstChildWhichIsA("BasePart") or safe:FindFirstChild("Hitbox")
         if targetPart then
             pcall(function() hrp.CFrame = CFrame.new(targetPart.Position + Vector3.new(0, 1, 2)) end)
-            task.wait(0.3) 
+            task.wait(0.1) 
             
+            -- Начинаем взлом
             local prompt = safe:FindFirstChildWhichIsA("ProximityPrompt", true) or targetPart:FindFirstChildWhichIsA("ProximityPrompt", true)
             if prompt then
                 pcall(function() fireproximityprompt(prompt) end)
                 pcall(function() VirtualUser:CaptureController(); VirtualUser:KeyDown(Enum.KeyCode.E) end)
             end
-            task.wait(0.5) 
-            pcall(function() VirtualUser:KeyUp(Enum.KeyCode.E) end)
             
-            task.wait(1.5) 
-            
-            for wave = 1, 5 do
+            -- СПАМ-СБОР БЕЗ ПАУЗ (Каждый кадр)
+            local farmTime = tick() + 2.5
+            while tick() < farmTime do
                 if not autoSafeFarm then break end
                 local lootParts = Workspace:GetPartBoundsInRadius(targetPart.Position, 30)
                 
@@ -474,29 +473,33 @@ local function doSafeFarm()
                     
                     if GEMS[pName] or GEMS[mName] then
                         pcall(function()
+                            -- 1. Касание
                             if firetouchinterest then
                                 firetouchinterest(hrp, lootPart, 0)
-                                task.wait(0.01)
                                 firetouchinterest(hrp, lootPart, 1)
                             end
+                            -- 2. Телепорт прямо в камень
+                            hrp.CFrame = CFrame.new(lootPart.Position)
+                            -- 3. Промпт и клик
                             local lootPrompt = lootPart:FindFirstChildWhichIsA("ProximityPrompt", true) or (lootPart.Parent and lootPart.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
                             if lootPrompt then fireproximityprompt(lootPrompt) end
                             local lootClick = lootPart:FindFirstChildWhichIsA("ClickDetector", true) or (lootPart.Parent and lootPart.Parent:FindFirstChildWhichIsA("ClickDetector", true))
                             if lootClick then fireclickdetector(lootClick) end
-                            hrp.CFrame = CFrame.new(lootPart.Position)
                         end)
                     end
                 end
-                task.wait(0.2) 
+                task.wait() -- Ждем ровно 1 кадр (60 раз в секунду)
             end
+            
+            pcall(function() VirtualUser:KeyUp(Enum.KeyCode.E) end)
         end
     end
-    task.wait(0.2)
+    task.wait(0.1)
     pcall(function() hrp.CFrame = startPos end)
 end
 
 task.spawn(function()
-    while task.wait(1) do 
+    while task.wait(0.5) do 
         if autoSafeFarm and not isSafeFarming then
             isSafeFarming = true
             task.spawn(function() pcall(doSafeFarm); isSafeFarming = false end)
