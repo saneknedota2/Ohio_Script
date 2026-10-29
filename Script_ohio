@@ -22,7 +22,7 @@ local isSafeFarming = false
 local trackedItems = {}
 local trackedPlayers = {}
 
--- ТОЧНЫЕ СПИСКИ ИЗ ТВОЕГО ФАЙЛА
+-- СПИСКИ
 local GUNS = { 
     ["m1911"]=true, ["glock"]=true, ["glock 18"]=true, ["diamond glock"]=true, ["usp 45"]=true, ["python"]=true, ["deagle"]=true, ["golden deagle"]=true, 
     ["mossberg"]=true, ["double barrel"]=true, ["sawn off"]=true, ["stagecoach"]=true, ["saiga 12"]=true, 
@@ -31,7 +31,7 @@ local GUNS = {
     ["flamethrower"]=true, ["acid gun"]=true, ["raygun"]=true, ["pulse rifle"]=true, ["money gun"]=true, ["gravity gun"]=true, ["taser gun"]=true 
 }
 local CARDS = { ["red card"]=true, ["red keycard"]=true, ["blue card"]=true, ["blue keycard"]=true }
-local RARE = { ["scythe"]=true, ["cash register"]=true, ["atm"]=true, ["money printer"]=true, ["crusader keys"]=true, ["safes"]=true, ["safe"]=true, ["suitcase nuke"]=true, ["lockpick"]=true, ["component box"]=true, ["c4"]=true }
+local RARE = { ["scythe"]=true, ["cash register"]=true, ["money printer"]=true, ["crusader keys"]=true, ["safes"]=true, ["safe"]=true, ["suitcase nuke"]=true, ["lockpick"]=true, ["component box"]=true, ["c4"]=true }
 local ARMOR = { ["light vest"]=true, ["medium vest"]=true, ["heavy vest"]=true, ["military vest"]=true }
 local MEDS = { ["bandage"]=true, ["medkit"]=true, ["med kit"]=true }
 local GEMS = { ["emerald"]=true, ["topaz"]=true, ["amethyst"]=true, ["sapphire"]=true, ["ruby"]=true, ["diamond"]=true, ["void gem"]=true, ["dark matter gem"]=true }
@@ -70,7 +70,7 @@ local titleText = Instance.new("TextLabel")
 titleText.Size = UDim2.new(1, -40, 1, 0)
 titleText.Position = UDim2.new(0, 10, 0, 0)
 titleText.BackgroundTransparency = 1
-titleText.Text = "ROCKET | Ohio Menu (All ESP)"
+titleText.Text = "ROCKET | Ohio Menu"
 titleText.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleText.Font = Enum.Font.GothamBold
 titleText.TextSize = 16
@@ -97,7 +97,7 @@ contentFrame.Parent = mainFrame
 local isOpen = false
 arrowBtn.MouseButton1Click:Connect(function()
     isOpen = not isOpen
-    mainFrame.Size = UDim2.new(0, 400, 0, isOpen and 480 or 40)
+    mainFrame.Size = UDim2.new(0, 400, 0, isOpen and 450 or 40)
     arrowBtn.Text = isOpen and "▲" or "▼"
     contentFrame.Visible = isOpen
 end)
@@ -227,7 +227,7 @@ local function createStatSetting(parent, label, defaultVal, callback)
     txtBox.ReturnPressedFromOnScreenKeyboard:Connect(apply)
 end
 
--- ЗАПОЛНЕНИЕ ВКЛАДОК
+-- ЗАПОЛНЕНИЕ
 createToggleButton(pageMain, "Авто-Фарм Банка", false, Color3.fromRGB(255, 200, 0), function(s) autoFarmBank = s end)
 createToggleButton(pageMain, "Авто-Взлом Сейфов", false, Color3.fromRGB(0, 200, 100), function(s) autoSafeFarm = s end)
 
@@ -276,7 +276,7 @@ end)
 switchTab("main")
 
 -- ==========================================
--- ФИЗИКА (Скорость и Прыжок)
+-- ФИЗИКА (ПРОСТОЙ ЦИКЛ, КАК РАНЬШЕ)
 -- ==========================================
 RunService.Heartbeat:Connect(function()
     if player.Character then
@@ -376,7 +376,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- АВТО-ФАРМ БАНКА (Деньги)
+-- АВТО-ФАРМ БАНКА
 -- ==========================================
 task.spawn(function()
     while task.wait(0.2) do 
@@ -419,7 +419,7 @@ task.spawn(function()
 end)
 
 -- ==========================================
--- ВЗЛОМ СЕЙФОВ (Стабильный + Точные камни)
+-- ВЗЛОМ СЕЙФОВ
 -- ==========================================
 local function doSafeFarm()
     local char = player.Character
@@ -589,7 +589,7 @@ Players.PlayerRemoving:Connect(function(p)
 end)
 
 -- ==========================================
--- ESP НА ПРЕДМЕТЫ (СТРОГО ПО СПИСКАМ)
+-- ESP НА ПРЕДМЕТЫ
 -- ==========================================
 local function createItemVisual(obj, color, category)
     if trackedItems[obj] then return end
